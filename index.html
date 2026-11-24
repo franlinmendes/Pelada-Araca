@@ -45,6 +45,7 @@ h3{margin:4px 0 8px}.m{color:var(--m);font-size:14px}
 .nb span{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid var(--g2);border-radius:8px;color:var(--g2);font-weight:700}
 .nb input:checked+span{background:var(--g2);color:#fff}.nb input:focus-visible+span{outline:2px solid var(--b)}
 details.card summary{font-weight:700;cursor:pointer;padding:2px 0}details.card[open] summary{margin-bottom:8px}details.card p,details.card li{font-size:15px;line-height:1.45;margin:6px 0}details.card ul,details.card ol{padding-left:20px;margin:6px 0}
+.xb{display:inline-flex;align-items:center;justify-content:center;width:1.3em;height:1.3em;background:var(--r);color:#fff;border-radius:6px;font-weight:700;font-size:.85em;vertical-align:middle;margin-right:4px}
 .big{font-size:18px;font-weight:700;text-align:center;padding:10px}
 a{color:var(--g2)}
 </style></head><body>
@@ -366,7 +367,7 @@ function viewPelada(){
   const L=lists(p),open=p.status==='aberta';
   const inD=L.dentro.some(u=>u.id===ME.id),eIdx=L.espera.findIndex(u=>u.id===ME.id);
   const mine=RS[ME.id]&&RS[ME.id].intent;
-  let st=mine==='fora'?'❌ Você está FORA':inD?'✅ Você está DENTRO':eIdx>=0?`⏳ Lista de espera (posição ${eIdx+1})`:'Você ainda não respondeu';
+  let st=mine==='fora'?'<span class="xb">✕</span> Você está FORA':inD?'✅ Você está DENTRO':eIdx>=0?`⏳ Lista de espera (posição ${eIdx+1})`:'Você ainda não respondeu';
   let h=`<button class="s" style="margin-bottom:10px" onclick="closeP();render()">← Peladas</button>
   <div class="card"><h3>${esc(p.titulo)}</h3><div class="m">${fdate(p.data)} · <span class="tag ${STATUS[p.status][1]}">${STATUS[p.status][0]}</span></div>
   <div class="m" style="margin-top:6px">Vagas: <b>${Math.min(L.dentro.length,p.max)}/${p.max}</b> · Espera: <b>${L.espera.length}</b></div>
@@ -378,7 +379,7 @@ function viewPelada(){
   else{
     h+=`<div class="card"><h3>✅ Dentro (${L.dentro.length})</h3>${L.dentro.sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Ninguém</span>'}</div>`;
     if(L.espera.length)h+=`<div class="card"><h3>⏳ Lista de espera (${L.espera.length})</h3>${L.espera.map((u,i)=>nameRow(u,`<small>${i+1}º</small>`)).join('')}</div>`;
-    h+=`<div class="card"><h3>❌ Fora (${L.fora.length})</h3>${L.fora.sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Ninguém</span>'}</div>`;
+    h+=`<div class="card"><h3><span class="xb">✕</span> Fora (${L.fora.length})</h3>${L.fora.sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Ninguém</span>'}</div>`;
     h+=`<div class="card"><h3>Sem resposta (${L.sem.length})</h3>${L.sem.sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Todos responderam</span>'}</div>`;
   }
   h+=viewVotacao(p);
