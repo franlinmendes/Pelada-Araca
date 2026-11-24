@@ -39,6 +39,7 @@ h3{margin:4px 0 8px}.m{color:var(--m);font-size:14px}
 .nt{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}.nb{display:block}.nb input{position:absolute;opacity:0;width:1px;height:1px}
 .nb span{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid var(--g2);border-radius:8px;color:var(--g2);font-weight:700}
 .nb input:checked+span{background:var(--g2);color:#fff}.nb input:focus-visible+span{outline:2px solid var(--b)}
+details.card summary{font-weight:700;cursor:pointer;padding:2px 0}details.card[open] summary{margin-bottom:8px}details.card p,details.card li{font-size:15px;line-height:1.45;margin:6px 0}details.card ul,details.card ol{padding-left:20px;margin:6px 0}
 .big{font-size:18px;font-weight:700;text-align:center;padding:10px}
 a{color:var(--g2)}
 </style></head><body>
@@ -142,11 +143,11 @@ function render(){
   }
   const tabs=[['peladas','⚽','Peladas']];
   if(ME.admin)tabs.push(['jog','👥','Jogadores'],['cfg','📲','Avisos']);
-  tabs.push(['perfil','👤','Perfil']);
+  tabs.push(['perfil','👤','Perfil'],['ajuda','❓','Ajuda']);
   nav.style.display='flex';
   nav.innerHTML=tabs.map(t=>`<button class="${tab===t[0]?'on':''}" onclick="setTab('${t[0]}')"><b>${t[1]}</b>${t[2]}</button>`).join('');
   if(tab==='jog'&&!ME.admin)tab='peladas';
-  a.innerHTML=tab==='peladas'?(curP?viewPelada():viewPeladas()):tab==='jog'?viewJog():tab==='cfg'?viewCfg():viewPerfil();
+  a.innerHTML=tab==='peladas'?(curP?viewPelada():viewPeladas()):tab==='jog'?viewJog():tab==='cfg'?viewCfg():tab==='ajuda'?viewAjuda():viewPerfil();
 }
 function setTab(t){tab=t;closeP();editU=null;showNew=false;render();window.scrollTo(0,0)}
 
@@ -227,6 +228,56 @@ function viewComplete(){
 async function doComplete(){
   const o=readProfile('c');if(!validProfile(o))return;
   try{await FB.F.setDoc(FB.F.doc(FB.db,'users',USER.uid),{...o,email:USER.email,mensalista:false,admin:false,createdAt:Date.now()})}catch(e){alert(errMsg(e))}
+}
+
+/* ---------- Ajuda ---------- */
+function viewAjuda(){
+  const D=(t,b,o)=>`<details class="card" ${o?'open':''}><summary>${t}</summary>${b}</details>`;
+  let h=`<h3 style="margin:4px 4px 10px">❓ Ajuda</h3>`;
+  h+=D('Como entrar no app',`<ul><li><b>Criar conta:</b> informe nome, e-mail, senha (mínimo 6 caracteres), data de nascimento e posição. Todos são obrigatórios. A foto é opcional.</li>
+  <li><b>Entrar:</b> use e-mail e senha, ou toque em <b>Entrar por link no e-mail</b> e abra o link que chegará na sua caixa de entrada (veja o spam).</li>
+  <li><b>Esqueci a senha:</b> digite o e-mail na tela de login e toque em "Esqueci minha senha".</li>
+  <li>Um administrador também pode cadastrar você. Nesse caso ele passa a senha inicial.</li></ul>`,true);
+  h+=D('Instalar no celular',`<ul><li><b>Android (Chrome):</b> menu ⋮ → "Instalar app".</li><li><b>iPhone (Safari):</b> botão Compartilhar → "Adicionar à Tela de Início".</li></ul>
+  <p>No iPhone, o link de login por e-mail abre no Safari e não no app instalado. Para entrar no app instalado, prefira e-mail e senha.</p>`);
+  h+=D('Meu perfil',`<p>Na aba <b>Perfil</b> você troca a foto e altera nome, data de nascimento e posição (goleiro, zagueiro, meia ou atacante). Nota, velocidade e se você é mensalista só os administradores podem alterar.</p>`);
+  h+=D('Confirmar presença',`<ol><li>Na aba <b>Peladas</b>, toque na pelada aberta.</li><li>Toque em <b>Estou dentro</b> ou <b>Estou fora</b>. Você pode mudar enquanto a pelada estiver aberta.</li><li>A tela mostra se você está <b>dentro</b>, na <b>lista de espera</b> (com a sua posição) ou <b>fora</b>.</li></ol>
+  <p>Depois que os times são sorteados, as presenças ficam fechadas.</p>`);
+  h+=D('Regras de vagas e lista de espera',`<ul>
+  <li>O administrador define o <b>número máximo de jogadores</b>. Quem passar disso entra na <b>lista de espera</b>.</li>
+  <li>Quando alguém sai, o primeiro da espera sobe sozinho para a lista de dentro.</li>
+  <li><b>Mensalistas têm prioridade nas primeiras 24 horas</b> após a criação da pelada. Nesse período, a vaga de cada mensalista que ainda não respondeu fica reservada.</li>
+  <li>Se há mais mensalistas que vagas, os não mensalistas ficam na espera até algum mensalista dizer que está fora.</li>
+  <li>Se há menos mensalistas que vagas, os não mensalistas entram direto nas vagas que sobram.</li>
+  <li><b>Depois das 24 horas</b> a reserva acaba: as vagas livres são de quem confirmar primeiro, mensalista ou não. Quem confirmou dentro do prazo mantém a vaga.</li>
+  <li>Dentro de cada grupo, vale a ordem em que a pessoa confirmou.</li></ul>`);
+  h+=D('Votação de notas',`<ul>
+  <li>Quando o administrador <b>finaliza</b> a pelada, abre uma votação de <b>24 horas</b> só para quem jogou.</li>
+  <li>Você dá uma nota <b>inteira de 1 a 10</b> para cada um dos outros jogadores. Não é possível votar em si mesmo.</li>
+  <li>Os votos são <b>anônimos</b>. Você pode alterar os seus até o fim do prazo.</li>
+  <li>Depois do prazo, os administradores veem a média de cada jogador, arredondada. Se ela for diferente da nota atual, qualquer administrador pode <b>aceitar ou negar</b> a mudança.</li></ul>`);
+  h+=D('Como os times são sorteados',`<p>O sorteio equilibra os times por <b>nota</b> (médias bem parecidas), <b>resistência</b>, <b>posição</b> (cada time recebe goleiros, zagueiros, meias e atacantes de forma parecida) e, com menos peso, a <b>idade</b>. Os times ficam com o mesmo número de jogadores (diferença de no máximo 1). A tela mostra os jogadores por time, a posição de cada um e a média de notas do time. As notas individuais não aparecem.</p>`);
+  if(isAdm()){
+    h+=`<h3 style="margin:14px 4px 10px">🔧 Para administradores</h3>`;
+    h+=D('Criar uma pelada',`<ol><li>Aba <b>Peladas</b> → <b>+ Nova pelada</b>.</li><li>Informe título, data (dd/mm/aaaa), hora (24h, hh:mm) e o número máximo de jogadores.</li><li>Toque em <b>Avisar contatos</b> dentro da pelada para mandar o convite ao grupo do WhatsApp.</li></ol>
+    <p>O prazo de 24h dos mensalistas conta a partir da criação.</p>`);
+    h+=D('Gerenciar jogadores',`<ul><li>Aba <b>Jogadores</b> → <b>Cadastrar jogador</b>: informe nome, e-mail, data de nascimento, posição, nota, velocidade/resistência e a senha inicial (mínimo 6 caracteres). Passe essa senha ao jogador.</li>
+    <li><b>Editar</b> permite mudar nota (1-10), velocidade/resistência (1-10), marcar <b>mensalista</b> e marcar <b>Administrador</b>. Você não pode remover o seu próprio acesso de admin.</li>
+    <li>Jogadores sem nota aparecem em vermelho. No sorteio eles entram com nota 5 e velocidade 5.</li>
+    <li>O limite é de 100 jogadores.</li></ul>`);
+    h+=D('Editar presenças, sortear e finalizar',`<ul><li>Dentro da pelada, o bloco <b>Presenças (editar)</b> permite colocar qualquer jogador como dentro ou fora.</li>
+    <li><b>Sortear times</b>: informe em quantos times dividir. Use <b>Sortear de novo</b> se quiser outra divisão ou <b>Cancelar sorteio</b> para reabrir as presenças.</li>
+    <li><b>Finalizar pelada</b> encerra a pelada e abre a votação de notas de 24 horas.</li>
+    <li>Altere notas antes de sortear: o sorteio usa as notas do momento.</li></ul>`);
+    h+=D('Apurar a votação',`<ul><li>No bloco <b>Apuração</b> você vê quantos jogadores votaram e quem ainda não votou. Dá para <b>encerrar a votação</b> antes das 24h.</li>
+    <li>Depois do prazo, aparecem as propostas: nota atual → nota sugerida pela média arredondada, com a média e o número de votos.</li>
+    <li><b>Aceitar</b> atualiza a nota oficial. <b>Negar</b> mantém a nota. Qualquer administrador pode decidir, e a decisão fica registrada.</li></ul>`);
+    h+=D('Avisos: grupo e contatos',`<ul><li>Na aba <b>Avisos</b>, cole o <b>link de convite do grupo</b> do WhatsApp. Ele fica guardado só para administradores.</li>
+    <li>Dentro de uma pelada, <b>Avisar contatos</b> → <b>Enviar para o grupo</b> copia a mensagem e abre o grupo. É só colar e enviar. O botão <b>Compartilhar</b> permite escolher o grupo dentro do WhatsApp.</li>
+    <li>Também dá para cadastrar celulares (com DDD) para avisos individuais por WhatsApp ou SMS.</li>
+    <li>A mensagem muda conforme a fase: convite, times sorteados ou votação aberta.</li></ul>`);
+  }
+  return h+'<p class="m" style="text-align:center">Pelada Araca</p>';
 }
 
 /* ---------- Perfil ---------- */
