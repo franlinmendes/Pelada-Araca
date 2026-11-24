@@ -117,7 +117,7 @@ const localHtml=v=>!v?'':`<div class="m" style="margin-top:6px">📍 ${/^https?:
 const fdate=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s||'');return m?`${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`:''};
 
 let PRB=[], sentOk=false;
-let FB={}, USER=undefined, ME=null, U={}, UP=[], UI=[], mainUnsubs=[], R={}, PL=[], RS={}, VT={}, DC={}, VD={}, CT=[], GRP='';
+let VN={}, FB={}, USER=undefined, ME=null, U={}, UP=[], UI=[], mainUnsubs=[], R={}, PL=[], RS={}, VT={}, DC={}, VD={}, CT=[], GRP='';
 let tab='peladas', curP=null, editU=null, showNew=false, mode='login', registering=false, usersLoaded=false;
 let unsubs=[], rsUnsub=null, subAdmin=false;
 const isAdm=()=>!!(ME&&ME.admin);
@@ -360,6 +360,7 @@ function viewAjuda(){
     h+=D('Editar presenças, sortear e finalizar',`<ul><li>Dentro da pelada, o bloco <b>Presenças (editar)</b> permite colocar qualquer jogador como dentro ou fora.</li>
     <li><b>Sortear times</b>: informe em quantos times dividir. Use <b>Sortear de novo</b> se quiser outra divisão ou <b>Cancelar sorteio</b> para reabrir as presenças.</li>
     <li><b>Finalizar pelada</b> encerra a pelada e abre a votação de notas de 24 horas.</li>
+    <li><b>Visitantes</b>: no bloco Visitantes informe idade, posição, nota e velocidade. Eles se chamam Visitante 1, Visitante 2... , entram direto como dentro e valem só para aquela pelada.</li>
     <li>Altere notas antes de sortear: o sorteio usa as notas do momento.</li></ul>`);
     h+=D('Apurar a votação',`<ul><li>No bloco <b>Apuração</b> você vê quantos jogadores votaram e quem ainda não votou. Dá para <b>encerrar a votação</b> antes das 24h.</li>
     <li>Depois do prazo, aparecem as propostas: nota atual → nota sugerida pela média arredondada, com a média e o número de votos.</li>
@@ -417,16 +418,18 @@ async function createPelada(){
   try{await FB.F.addDoc(FB.F.collection(FB.db,'peladas'),{titulo,data,local:loc.v,max,status:'aberta',createdAt:Date.now()});showNew=false;render()}catch(e){alert(errMsg(e))}
 }
 function openP(id){
-  FQ={};curP=id;RS={};VT={};DC={};VD={};if(rsUnsub)rsUnsub();
+  FQ={};curP=id;RS={};VT={};DC={};VD={};VN={};if(rsUnsub)rsUnsub();
   const {F,db}=FB,subs=[F.onSnapshot(F.collection(db,'peladas',id,'rsvps'),s=>{RS={};s.forEach(d=>RS[d.id]=d.data());softRender()},e=>console.warn(e))];
   if(isAdm()){
+    subs.push(F.onSnapshot(F.collection(db,'peladas',id,'vnotas'),s=>{VN={};s.forEach(d=>VN[d.id]=d.data());softRender()},e=>console.warn(e)));
     subs.push(F.onSnapshot(F.collection(db,'peladas',id,'votos'),s=>{VT={};s.forEach(d=>VT[d.id]=d.data());softRender()},e=>console.warn(e)));
     subs.push(F.onSnapshot(F.collection(db,'peladas',id,'decisoes'),s=>{DC={};s.forEach(d=>DC[d.id]=d.data());softRender()},e=>console.warn(e)));
   }else subs.push(F.onSnapshot(F.doc(db,'peladas',id,'votos',ME.id),s=>{VT=s.exists()?{[ME.id]:s.data()}:{};softRender()},e=>console.warn(e)));
   rsUnsub=()=>subs.forEach(f=>f());
   render();window.scrollTo(0,0);
 }
-function closeP(){curP=null;if(rsUnsub)rsUnsub();rsUnsub=null;RS={};VT={};DC={};VD={}}
+function closeP(){curP=null;if(rsUnsub)rsUnsub();rsUnsub=null;RS={};VT={};DC={};VD={};VN={}}
+const rate=id=>R[id]||VN[id]||{};
 const curPel=()=>PL.find(p=>p.id===curP);
 
 // Mensalistas têm 24h (a partir da criação da pelada) para responder; nesse prazo as vagas deles ficam reservadas.
@@ -440,11 +443,12 @@ function lists(p,now=Date.now()){
   const prio=dentroI.filter(u=>u.mensalista&&ts(u)<=dl).sort((a,b)=>ts(a)-ts(b));   // mensalistas que responderam no prazo
   const rest=dentroI.filter(u=>!prio.includes(u)).sort((a,b)=>ts(a)-ts(b));          // demais, por ordem de chegada
   const pend=win?us.filter(u=>u.mensalista&&!RS[u.id]).length:0;                      // vagas ainda reservadas a mensalistas
-  const slots=Math.max(0,p.max-prio.length-pend);
-  return{dentro:[...prio.slice(0,p.max),...rest.slice(0,slots)],espera:[...prio.slice(p.max),...rest.slice(slots)],
+  const vis=(p.visitantes||[]).map(v=>({...v,visitante:true}));
+  const pr=[...vis,...prio],slots=Math.max(0,p.max-pr.length-pend);
+  return{dentro:[...pr.slice(0,p.max),...rest.slice(0,slots)],espera:[...pr.slice(p.max),...rest.slice(slots)],
     fora:us.filter(u=>it(u)==='fora'),sem:us.filter(u=>!RS[u.id]),win,dl};
 }
-function nameRow(u,extra=''){return `<div class="pl" ${FR('pel',u.nome)} style="padding:4px 0;border-top:1px solid #8883">${avatar(u,28)}<div class="i">${esc(u.nome)}${u.mensalista?' <span class="tag b">M</span>':''}</div><span class="tag gr">${POSN[u.pos]||''}</span>${extra}</div>`}
+function nameRow(u,extra=''){return `<div class="pl" ${FR('pel',u.nome)} style="padding:4px 0;border-top:1px solid #8883">${avatar(u,28)}<div class="i">${esc(u.nome)}${u.mensalista?' <span class="tag b">M</span>':''}${u.visitante?' <span class="tag o">Visitante</span>':''}</div><span class="tag gr">${POSN[u.pos]||''}</span>${extra}</div>`}
 
 function viewPelada(){
   const p=curPel();if(!p){closeP();return viewPeladas()}
@@ -475,7 +479,7 @@ function viewPelada(){
 }
 function viewTimes(p){
   return p.times.map((t,i)=>`<div class="card"><h3>${['🟢','🔵','🟡','🔴','🟣','🟠','⚪','⚫'][i%8]} Time ${i+1}</h3>
-  <div class="m">${t.jogadores.length} jogadores${isAdm()?` · média das notas <b>${avg(t.jogadores.map(j=>(R[j.id]||{}).nota||5)).toFixed(2)}</b> · resistência <b>${avg(t.jogadores.map(j=>(R[j.id]||{}).vel||5)).toFixed(2)}</b>`:''}</div>
+  <div class="m">${t.jogadores.length} jogadores${isAdm()?` · média das notas <b>${avg(t.jogadores.map(j=>rate(j.id).nota||5)).toFixed(2)}</b> · resistência <b>${avg(t.jogadores.map(j=>rate(j.id).vel||5)).toFixed(2)}</b>`:''}</div>
   <div class="m" style="margin:4px 0 8px">${Balance.POS.map(x=>{const c=t.jogadores.filter(j=>j.pos===x).length;return c?`${c} ${POSN[x].toLowerCase()}`:''}).filter(Boolean).join(' · ')}</div>
   ${t.jogadores.slice().sort(byNome).map(j=>`<div class="pl" ${FR('pel',j.nome)} style="padding:5px 0;border-top:1px solid #8883">${avatar(U[j.id]||j,28)}<div class="i">${esc(j.nome)}</div><span class="tag gr">${POSN[j.pos]}</span></div>`).join('')}</div>`).join('');
 }
@@ -556,10 +560,35 @@ function viewAdminP(p,L){
     <button class="s" style="width:100%;margin-top:8px" onclick="setStatus('aberta',true)">Cancelar sorteio (reabrir)</button>`;
   h+=`<button class="s" style="width:100%;margin-top:8px" onclick="notify()">📲 Avisar contatos</button>
   <button class="d" style="width:100%;margin-top:8px" onclick="delPelada()">Excluir pelada</button></div>`;
+  if(p.status==='aberta') h+=viewVis(p);
   if(p.status==='aberta') h+=`<div class="card"><h3>Presenças (editar)</h3>${FIL('pres')}${us.map(u=>{const i=RS[u.id]&&RS[u.id].intent;
     return `<div class="pl" ${FR('pres',u.nome)} style="padding:5px 0;border-top:1px solid #8883">${avatar(u,28)}<div class="i">${esc(u.nome)}${u.mensalista?' <span class="tag b">M</span>':''}</div>
     <button class="s ${i==='dentro'?'on':''}" onclick="setRsvp('${u.id}','dentro')">Dentro</button><button class="s ${i==='fora'?'offb':''}" onclick="setRsvp('${u.id}','fora')">Fora</button></div>`}).join('')}</div>`;
   return h;
+}
+function viewVis(p){
+  const vs=p.visitantes||[];
+  return `<div class="card"><h3>🧑‍🤝‍🧑 Visitantes</h3><p class="m">Valem só para esta pelada e não ficam cadastrados. Entram direto na lista de dentro.</p>
+  ${vs.map(v=>`<div class="pl" style="padding:5px 0;border-top:1px solid #8883"><div class="i">${esc(v.nome)} <small>${POSN[v.pos]||''} · ${v.idade} anos · nota ${(VN[v.id]||{}).nota??'?'} · res. ${(VN[v.id]||{}).vel??'?'}</small></div><button class="d" onclick="delVis('${esc(v.id)}')">✕</button></div>`).join('')}
+  <div class="row" style="margin-top:8px"><div><label>Idade</label><input id="v_i" type="number" inputmode="numeric" min="5" max="90"></div>
+  <div><label>Posição</label><select id="v_pos">${posOpts('meia')}</select></div></div>
+  <div class="row"><div><label>Nota (1-10)</label><select id="v_no">${opts(5)}</select></div><div><label>Velocidade/resistência</label><select id="v_v">${opts(5)}</select></div></div>
+  <button class="p" onclick="addVis()">+ Adicionar visitante</button></div>`;
+}
+async function addVis(){
+  const p=curPel(),vs=p.visitantes||[],idade=parseInt($('#v_i').value);
+  if(!(idade>=5&&idade<=90))return alert('Informe a idade (5 a 90).');
+  const n=vs.reduce((m,v)=>Math.max(m,parseInt(String(v.nome).replace(/\D/g,''))||0),0)+1,id='v'+Date.now().toString(36);
+  const v={id,nome:'Visitante '+n,idade,pos:$('#v_pos').value};
+  try{
+    await FB.F.setDoc(FB.F.doc(FB.db,'peladas',curP,'vnotas',id),{nota:+$('#v_no').value,vel:+$('#v_v').value});
+    await FB.F.updateDoc(FB.F.doc(FB.db,'peladas',curP),{visitantes:[...vs,v]});
+    $('#v_i').value='';
+  }catch(e){alert(errMsg(e))}
+}
+async function delVis(id){
+  const p=curPel();
+  try{await FB.F.updateDoc(FB.F.doc(FB.db,'peladas',curP),{visitantes:(p.visitantes||[]).filter(v=>v.id!==id)});await FB.F.deleteDoc(FB.F.doc(FB.db,'peladas',curP,'vnotas',id))}catch(e){alert(errMsg(e))}
 }
 function askTeams(){
   const p=curPel(),n=lists(p).dentro.length;
@@ -575,7 +604,7 @@ function askTeams(){
     d.remove();await sortear(k)};
 }
 async function sortear(k){
-  const p=curPel(),pl=lists(p).dentro.map(u=>({id:u.id,nome:u.nome,pos:u.pos,idade:ageOf(u),nota:(R[u.id]||{}).nota||5,vel:(R[u.id]||{}).vel||5}));
+  const p=curPel(),pl=lists(p).dentro.map(u=>({id:u.id,nome:u.nome,pos:u.pos,idade:ageOf(u),nota:rate(u.id).nota||5,vel:rate(u.id).vel||5}));
   const teams=Balance.balance(pl,k);
   const times=teams.map(t=>({jogadores:t.map(x=>({id:x.id,nome:x.nome,pos:x.pos}))}));
   try{await FB.F.updateDoc(FB.F.doc(FB.db,'peladas',curP),{status:'sorteada',times,sorteadoEm:Date.now()})}catch(e){alert(errMsg(e))}

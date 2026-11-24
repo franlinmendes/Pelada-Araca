@@ -73,6 +73,11 @@ service cloud.firestore {
         allow delete: if isAdmin();
       }
 
+      // Nota e velocidade dos visitantes desta pelada: só admin.
+      match /vnotas/{vid} {
+        allow read, write: if isAdmin();
+      }
+
       // Decisões do admin sobre as notas propostas.
       match /decisoes/{uid} {
         allow read, write: if isAdmin();
