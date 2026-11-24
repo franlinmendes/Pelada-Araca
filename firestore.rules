@@ -12,12 +12,19 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.admin == true;
     }
 
+    // Acesso: usuário novo fica 'pendente' até um admin aprovar. Sem campo 'status' = aprovado (contas antigas).
+    function aprovado() {
+      return signed() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('status', 'aprovado') == 'aprovado';
+    }
+
     // Perfis. Usuário comum só altera nome, idade e posição; admin altera tudo.
     match /users/{uid} {
-      allow read: if signed();
+      allow read: if signed() && (request.auth.uid == uid || aprovado());
       allow create: if signed() && fotoOk() && (
         isAdmin() ||
         (request.auth.uid == uid &&
+         request.resource.data.status == 'pendente' &&
          request.resource.data.admin == false &&
          request.resource.data.mensalista == false));
       allow update: if isAdmin() || (
@@ -34,7 +41,7 @@ service cloud.firestore {
 
     // Relatos de problemas: qualquer usuário logado envia; só admin lê e gerencia.
     match /problemas/{id} {
-      allow create: if signed() &&
+      allow create: if aprovado() &&
         request.resource.data.uid == request.auth.uid &&
         request.resource.data.texto is string &&
         request.resource.data.texto.size() > 0 &&
@@ -49,7 +56,7 @@ service cloud.firestore {
 
     // Peladas: todos leem, só admin cria/edita.
     match /peladas/{pid} {
-      allow read: if signed();
+      allow read: if aprovado();
       allow write: if isAdmin();
 
       // Votação de notas: só participantes, só até o prazo, só em jogadores da pelada, nunca em si mesmo.
@@ -73,10 +80,11 @@ service cloud.firestore {
 
       // Presença: cada um muda a própria (só com a pelada aberta); admin muda a de qualquer um.
       match /rsvps/{uid} {
-        allow read: if signed();
+        allow read: if aprovado();
         allow create, update: if isAdmin() || (
           request.auth.uid == uid &&
           request.resource.data.by == uid &&
+          aprovado() &&
           request.resource.data.intent in ['dentro', 'fora'] &&
           get(/databases/$(database)/documents/peladas/$(pid)).data.status == 'aberta');
         allow delete: if isAdmin();

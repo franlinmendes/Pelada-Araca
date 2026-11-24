@@ -49,6 +49,8 @@ details.card summary{font-weight:700;cursor:pointer;padding:2px 0}details.card[o
 .xb{display:inline-flex;align-items:center;justify-content:center;width:1.4em;height:1.4em;background:var(--r);color:#fff;border-radius:4px;font-weight:700;font-size:.8em;line-height:1;vertical-align:.05em;margin-right:.3em}
 .big{font-size:18px;font-weight:700;text-align:center;padding:10px}
 a{color:var(--g2)}
+.fq{margin:2px 0 10px}.zoom{max-width:100%;max-height:75vh;border-radius:12px;display:block}
+img.av{cursor:zoom-in}
 </style></head><body>
 <header><span><button id="mb" onclick="toggleMenu()" aria-label="Menu" style="display:none">☰</button>⚽ Pelada Flor do Araçá</span><small id="who"></small></header>
 <main id="app"><div class="card">Carregando...</div></main>
@@ -71,16 +73,33 @@ const fromBR=t=>{const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(t.trim());if(!m)retu
 const DATEIN=(id,v='')=>`<input id="${id}" inputmode="numeric" placeholder="dd/mm/aaaa" maxlength="10" autocomplete="off" oninput="maskDate(this)" value="${esc(v)}">`;
 const maskTime=el=>{const d=el.value.replace(/\D/g,'').slice(0,4);el.value=d.length>2?d.slice(0,2)+':'+d.slice(2):d};
 let PH={};
+const norm=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const byNome=(a,b)=>String(a.nome).localeCompare(String(b.nome),'pt',{sensitivity:'base'});
+let FQ={};
+const FIL=s=>`<input class="fq" data-scope="${s}" type="search" placeholder="🔍 Buscar jogador..." autocomplete="off" oninput="doFilter(this)">`;
+const FR=(s,n)=>`data-s="${s}" data-n="${esc(norm(n))}"`;
+function doFilter(el){FQ[el.dataset.scope]=el.value;applyFilters()}
+function applyFilters(){
+  document.querySelectorAll('input.fq').forEach(i=>{const q=FQ[i.dataset.scope]||'';if(i.value!==q)i.value=q;
+    const k=norm(q.trim());document.querySelectorAll(`[data-s="${i.dataset.scope}"]`).forEach(r=>{r.style.display=r.dataset.n.includes(k)?'':'none'})});
+}
+function showPhoto(id){
+  const u=U[id]||(ME&&ME.id===id?ME:null);if(!u||!u.foto)return;
+  const d=document.createElement('div');d.className='modal';d.onclick=()=>{d.remove();render()};
+  d.innerHTML=`<div style="text-align:center"><img class="zoom" src="${u.foto}" alt=""><div style="color:#fff;margin-top:8px;font-weight:700">${esc(u.nome)}</div></div>`;
+  document.body.appendChild(d);
+}
 const avatar=(u,s=32)=>(u&&typeof u.foto==='string'&&u.foto.startsWith('data:image/jpeg;base64,'))
-  ?`<img src="${u.foto}" alt="" style="width:${s}px;height:${s}px;border-radius:50%;object-fit:cover;flex:none">`
+  ?`<img ${u.id?`class="av" onclick="event.stopPropagation();showPhoto('${esc(u.id)}')" `:''}src="${u.foto}" alt="" style="width:${s}px;height:${s}px;border-radius:50%;object-fit:cover;flex:none">`
   :`<span style="width:${s}px;height:${s}px;border-radius:50%;background:var(--g2);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;flex:none;font-size:${Math.round(s*.45)}px">${esc(((u&&u.nome)||'?')[0].toUpperCase())}</span>`;
 const photoField=(p,u)=>`<div class="pl" style="margin:6px 0"><span id="ph_${p}">${avatar(PH[p]?{foto:PH[p],nome:''}:u,64)}</span>
   <div class="i"><button type="button" class="s" onclick="this.nextElementSibling.click()">📷 ${PH[p]||(u&&u.foto)?'Trocar foto':'Adicionar foto'}</button><input type="file" accept="image/*" hidden onchange="pickPhoto('${p}',this)"></div></div>`;
 function pickPhoto(p,inp){
   const f=inp.files[0];if(!f)return;const url=URL.createObjectURL(f),img=new Image();
-  img.onload=()=>{const c=document.createElement('canvas');c.width=c.height=128;const m=Math.min(img.width,img.height);
-    c.getContext('2d').drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,128,128);
-    PH[p]=c.toDataURL('image/jpeg',0.7);URL.revokeObjectURL(url);
+  img.onload=()=>{const c=document.createElement('canvas');c.width=c.height=192;const m=Math.min(img.width,img.height);
+    c.getContext('2d').drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,192,192);
+    let q=0.75,d=c.toDataURL('image/jpeg',q);while(d.length>28000&&q>0.3){q-=0.1;d=c.toDataURL('image/jpeg',q)}
+    PH[p]=d;URL.revokeObjectURL(url);
     const e=$('#ph_'+p);if(e)e.innerHTML=avatar({foto:PH[p],nome:''},64)};
   img.onerror=()=>alert('Não foi possível ler essa imagem.');img.src=url;
 }
@@ -98,7 +117,7 @@ const localHtml=v=>!v?'':`<div class="m" style="margin-top:6px">📍 ${/^https?:
 const fdate=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s||'');return m?`${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`:''};
 
 let PRB=[], sentOk=false;
-let FB={}, USER=undefined, ME=null, U={}, R={}, PL=[], RS={}, VT={}, DC={}, VD={}, CT=[], GRP='';
+let FB={}, USER=undefined, ME=null, U={}, UP=[], UI=[], mainUnsubs=[], R={}, PL=[], RS={}, VT={}, DC={}, VD={}, CT=[], GRP='';
 let tab='peladas', curP=null, editU=null, showNew=false, mode='login', registering=false, usersLoaded=false;
 let unsubs=[], rsUnsub=null, subAdmin=false;
 const isAdm=()=>!!(ME&&ME.admin);
@@ -114,30 +133,41 @@ async function boot(){
     if(AU.isSignInWithEmailLink(FB.auth,location.href)) finishLink();
   }catch(e){$('#app').innerHTML='<div class="card">Sem conexão com o servidor. Verifique a internet e recarregue.</div>'}
 }
-function stopAll(){unsubs.forEach(u=>u());unsubs=[];if(rsUnsub)rsUnsub();rsUnsub=null;subAdmin=false}
+function stopMain(){mainUnsubs.forEach(u=>u());mainUnsubs=[];if(rsUnsub)rsUnsub();rsUnsub=null;subAdmin=false}
+function stopAll(){unsubs.forEach(u=>u());unsubs=[];stopMain();if(rsUnsub)rsUnsub();rsUnsub=null;subAdmin=false}
 function onUser(u){
-  USER=u;PH={};stopAll();ME=null;U={};R={};PL=[];RS={};CT=[];PRB=[];curP=null;editU=null;usersLoaded=false;tab='peladas';
+  USER=u;PH={};stopAll();ME=null;U={};UP=[];UI=[];FQ={};R={};PL=[];RS={};CT=[];PRB=[];curP=null;editU=null;usersLoaded=false;tab='peladas';
   if(u) startSubs();
   render();
 }
+const aprovado=u=>!!u&&(u.status===undefined||u.status==='aprovado');
 function startSubs(){
   const {F,db}=FB;
-  unsubs.push(F.onSnapshot(F.collection(db,'users'),s=>{
-    U={};s.forEach(d=>U[d.id]={id:d.id,...d.data()});
-    const had=!!ME;ME=U[USER.uid]||null;usersLoaded=true;
-    if(ME&&ME.admin&&!subAdmin){subAdmin=true;subscribeAdmin()}
-    had&&ME?softRender():render();
+  unsubs.push(F.onSnapshot(F.doc(db,'users',USER.uid),s=>{
+    ME=s.exists()?{id:s.id,...s.data()}:null;usersLoaded=true;
+    if(aprovado(ME)){if(!mainUnsubs.length)startMain()}
+    else if(mainUnsubs.length){stopMain();U={};UP=[];UI=[];PL=[];curP=null}
+    render();
   },e=>console.warn(e)));
-  unsubs.push(F.onSnapshot(F.collection(db,'peladas'),s=>{
+}
+function startMain(){
+  const {F,db}=FB;
+  mainUnsubs.push(F.onSnapshot(F.collection(db,'users'),s=>{
+    U={};UP=[];UI=[];
+    s.forEach(d=>{const u={id:d.id,...d.data()};if(u.status==='pendente')UP.push(u);else if(u.status==='inativo')UI.push(u);else U[d.id]=u});
+    if(ME&&ME.admin&&!subAdmin){subAdmin=true;subscribeAdmin()}
+    softRender();
+  },e=>console.warn(e)));
+  mainUnsubs.push(F.onSnapshot(F.collection(db,'peladas'),s=>{
     PL=[];s.forEach(d=>PL.push({id:d.id,...d.data()}));
     PL.sort((a,b)=>(b.data||'').localeCompare(a.data||''));softRender();
   },e=>console.warn(e)));
 }
 function subscribeAdmin(){
   const {F,db}=FB;
-  unsubs.push(F.onSnapshot(F.collection(db,'ratings'),s=>{R={};s.forEach(d=>R[d.id]=d.data());softRender()},e=>console.warn(e)));
-  unsubs.push(F.onSnapshot(F.collection(db,'problemas'),s=>{PRB=[];s.forEach(d=>PRB.push({id:d.id,...d.data()}));PRB.sort((a,b)=>(b.ts||0)-(a.ts||0));softRender()},e=>console.warn(e)));
-  unsubs.push(F.onSnapshot(F.doc(db,'config','contatos'),s=>{const d=s.data()||{};CT=d.lista||[];GRP=d.grupo||'';softRender()},e=>console.warn(e)));
+  mainUnsubs.push(F.onSnapshot(F.collection(db,'ratings'),s=>{R={};s.forEach(d=>R[d.id]=d.data());softRender()},e=>console.warn(e)));
+  mainUnsubs.push(F.onSnapshot(F.collection(db,'problemas'),s=>{PRB=[];s.forEach(d=>PRB.push({id:d.id,...d.data()}));PRB.sort((a,b)=>(b.ts||0)-(a.ts||0));softRender()},e=>console.warn(e)));
+  mainUnsubs.push(F.onSnapshot(F.doc(db,'config','contatos'),s=>{const d=s.data()||{};CT=d.lista||[];GRP=d.grupo||'';softRender()},e=>console.warn(e)));
 }
 function errMsg(e){
   const m={'auth/invalid-credential':'E-mail ou senha incorretos.','auth/wrong-password':'E-mail ou senha incorretos.','auth/user-not-found':'E-mail ou senha incorretos.',
@@ -162,18 +192,26 @@ function render(){
     nav.style.display='none';$('#mb').style.display='none';
     a.innerHTML=(registering||!usersLoaded)?'<div class="card">Carregando...</div>':viewComplete();return;
   }
+  if(!aprovado(ME)){
+    nav.style.display='none';$('#mb').style.display='none';
+    a.innerHTML=ME.status==='pendente'?`<div class="card"><h3>⏳ Aguardando aprovação</h3><p class="m">Seu cadastro foi recebido. Assim que um administrador aprovar a sua entrada no grupo, você poderá ver as peladas. Volte mais tarde.</p>
+    <button class="s" style="width:100%" onclick="FB.AU.signOut(FB.auth)">Sair</button></div>`
+    :`<div class="card"><h3>Acesso indisponível</h3><p class="m">Sua conta não está ativa neste grupo.</p><button class="s" style="width:100%" onclick="FB.AU.signOut(FB.auth)">Sair</button></div>`;
+    return;
+  }
   const tabs=[['peladas','⚽','Peladas']];
-  if(ME.admin)tabs.push(['jog','👥','Jogadores'],['cfg','📲','Avisos'],['prob','📥','Problemas'+(PRB.filter(x=>x.status!=='resolvido').length?' ('+PRB.filter(x=>x.status!=='resolvido').length+')':'')]);
-  tabs.push(['perfil','👤','Perfil'],['ajuda','❓','Ajuda'],['rep','🐞','Reportar problema']);
+  if(ME.admin)tabs.push(['jog','👥','Jogadores'+(UP.length?' ('+UP.length+')':'')],['cfg','📲','Avisos'],['prob','📥','Problemas'+(PRB.filter(x=>x.status!=='resolvido').length?' ('+PRB.filter(x=>x.status!=='resolvido').length+')':'')]);
+  tabs.push(['perfil','👤','Perfil'],['ajuda','❓','Ajuda'],['rep','🐞','Relatar Problemas']);
   nav.style.display='flex';$('#mb').style.display='';
   nav.innerHTML=`<div class="dh">${avatar(ME,44)}<div><b style="width:auto;text-align:left">${esc(ME.nome)}</b><small>${ME.admin?'Administrador':ME.mensalista?'Mensalista':'Jogador'}</small></div></div>`+
     tabs.map(t=>`<button class="${tab===t[0]?'on':''}" onclick="setTab('${t[0]}')"><b>${t[1]}</b>${t[2]}</button>`).join('')+
     `<button class="out" onclick="toggleMenu(false);FB.AU.signOut(FB.auth)"><b>🚪</b>Sair</button>`;
   if((tab==='jog'||tab==='cfg'||tab==='prob')&&!ME.admin)tab='peladas';
   a.innerHTML=tab==='peladas'?(curP?viewPelada():viewPeladas()):tab==='jog'?viewJog():tab==='cfg'?viewCfg():tab==='ajuda'?viewAjuda():tab==='rep'?viewReport():tab==='prob'?viewProblemas():viewPerfil();
+  applyFilters();
 }
 function toggleMenu(v){const o=v===undefined?!$('#nav').classList.contains('open'):v;$('#nav').classList.toggle('open',o);$('#ov').classList.toggle('open',o)}
-function setTab(t){toggleMenu(false);tab=t;sentOk=false;closeP();editU=null;showNew=false;render();window.scrollTo(0,0)}
+function setTab(t){toggleMenu(false);tab=t;FQ={};sentOk=false;closeP();editU=null;showNew=false;render();window.scrollTo(0,0)}
 
 /* ---------- Login / cadastro ---------- */
 function posOpts(v){return Object.entries(POSN).map(([k,n])=>`<option value="${k}" ${k===v?'selected':''}>${n}</option>`).join('')}
@@ -238,7 +276,7 @@ async function doSignup(){
   registering=true;
   try{
     const c=await FB.AU.createUserWithEmailAndPassword(FB.auth,email,(senha));
-    await FB.F.setDoc(FB.F.doc(FB.db,'users',c.user.uid),{...o,email,mensalista:false,admin:false,createdAt:Date.now()});
+    await FB.F.setDoc(FB.F.doc(FB.db,'users',c.user.uid),{...o,email,mensalista:false,admin:false,status:'pendente',createdAt:Date.now()});
   }catch(e){alert(errMsg(e))}
   registering=false;render();
 }
@@ -251,14 +289,14 @@ function viewComplete(){
 }
 async function doComplete(){
   const o=readProfile('c');if(!validProfile(o))return;
-  try{await FB.F.setDoc(FB.F.doc(FB.db,'users',USER.uid),{...o,email:USER.email,mensalista:false,admin:false,createdAt:Date.now()})}catch(e){alert(errMsg(e))}
+  try{await FB.F.setDoc(FB.F.doc(FB.db,'users',USER.uid),{...o,email:USER.email,mensalista:false,admin:false,status:'pendente',createdAt:Date.now()})}catch(e){alert(errMsg(e))}
 }
 
-/* ---------- Reportar problema ---------- */
+/* ---------- Relatar problemas ---------- */
 function viewReport(){
   if(sentOk) return `<div class="card"><h3>✅ Obrigado!</h3><p class="m">Seu relato foi enviado aos administradores.</p>
   <button class="p" onclick="sentOk=false;render()">Enviar outro relato</button></div>`;
-  return `<div class="card"><h3>🐞 Reportar um problema</h3>
+  return `<div class="card"><h3>🐞 Relatar Problemas</h3>
   <p class="m">Descreva o que aconteceu: em que tela você estava, o que tentou fazer e o que apareceu. Os administradores vão receber o seu relato.</p>
   <label>Descrição do problema</label><textarea id="r_t" maxlength="1000" placeholder="Ex.: ao tocar em &quot;Estou dentro&quot; apareceu uma mensagem de erro..."></textarea>
   <button class="p" onclick="sendReport()">Enviar relato</button></div>`;
@@ -283,36 +321,39 @@ async function delProb(id){if(!confirm('Excluir este relato?'))return;try{await 
 
 /* ---------- Ajuda ---------- */
 function viewAjuda(){
+  const hasM=Object.values(U).some(u=>u.mensalista);
   const D=(t,b,o)=>`<details class="card" ${o?'open':''}><summary>${t}</summary>${b}</details>`;
   let h=`<h3 style="margin:4px 4px 10px">❓ Ajuda</h3>`;
-  h+=D('Como entrar no app',`<ul><li><b>Criar conta:</b> informe nome, e-mail, senha (mínimo 6 caracteres), data de nascimento e posição. Todos são obrigatórios. A foto é opcional.</li>
+  h+=D('Como entrar no app',`<ul><li><b>Criar conta:</b> informe nome, e-mail, senha (mínimo 6 caracteres), data de nascimento e posição. Todos são obrigatórios. A foto é opcional. Depois de criar a conta, <b>um administrador precisa aprovar a sua entrada</b>: até lá você só vê um aviso de espera. Se a entrada for negada, a conta fica inativa.</li>
   <li><b>Entrar:</b> use e-mail e senha, ou toque em <b>Entrar por link no e-mail</b> e abra o link que chegará na sua caixa de entrada (veja o spam).</li>
   <li><b>Esqueci a senha:</b> digite o e-mail na tela de login e toque em "Esqueci minha senha".</li>
-  <li>Um administrador também pode cadastrar você. Nesse caso ele passa a senha inicial.</li></ul>`,true);
+  <li>Um administrador também pode cadastrar você. Nesse caso a entrada já é aprovada e ele passa a senha inicial.</li>
+  <li>Em qualquer lista, <b>toque na foto</b> de um jogador para ampliá-la. As listas de nomes ficam em ordem alfabética e têm um campo de busca.</li></ul>`,true);
   h+=D('Instalar no celular',`<ul><li><b>Android (Chrome):</b> menu ⋮ → "Instalar app".</li><li><b>iPhone (Safari):</b> botão Compartilhar → "Adicionar à Tela de Início".</li></ul>
   <p>No iPhone, o link de login por e-mail abre no Safari e não no app instalado. Para entrar no app instalado, prefira e-mail e senha.</p>`);
-  h+=D('Meu perfil',`<p>Na aba <b>Perfil</b> você troca a foto e altera nome, data de nascimento e posição (goleiro, zagueiro, meia ou atacante). Nota, velocidade e se você é mensalista só os administradores podem alterar.</p>`);
+  h+=D('Meu perfil',`<p>Na aba <b>Perfil</b> você troca a foto e altera nome, data de nascimento e posição (goleiro, zagueiro, meia ou atacante). Nota, velocidade e a condição de mensalista só os administradores podem ver e alterar.</p>`);
   h+=D('Confirmar presença',`<ol><li>Na aba <b>Peladas</b>, toque na pelada aberta.</li><li>Toque em <b>Estou dentro</b> ou <b>Estou fora</b>. Você pode mudar enquanto a pelada estiver aberta.</li><li>A tela mostra se você está <b>dentro</b>, na <b>lista de espera</b> (com a sua posição) ou <b>fora</b>.</li></ol>
   <p>Depois que os times são sorteados, as presenças ficam fechadas.</p>`);
   h+=D('Regras de vagas e lista de espera',`<ul>
   <li>O administrador define o <b>número máximo de jogadores</b>. Quem passar disso entra na <b>lista de espera</b>.</li>
   <li>Quando alguém sai, o primeiro da espera sobe sozinho para a lista de dentro.</li>
-  <li><b>Mensalistas têm prioridade nas primeiras 24 horas</b> após a criação da pelada. Nesse período, a vaga de cada mensalista que ainda não respondeu fica reservada.</li>
+  ${hasM?`<li><b>Mensalistas têm prioridade nas primeiras 24 horas</b> após a criação da pelada. Nesse período, a vaga de cada mensalista que ainda não respondeu fica reservada.</li>
   <li>Se há mais mensalistas que vagas, os não mensalistas ficam na espera até algum mensalista dizer que está fora.</li>
   <li>Se há menos mensalistas que vagas, os não mensalistas entram direto nas vagas que sobram.</li>
-  <li><b>Depois das 24 horas</b> a reserva acaba: as vagas livres são de quem confirmar primeiro, mensalista ou não. Quem confirmou dentro do prazo mantém a vaga.</li>
-  <li>Dentro de cada grupo, vale a ordem em que a pessoa confirmou.</li></ul>`);
+  <li><b>Depois das 24 horas</b> a reserva acaba: as vagas livres são de quem confirmar primeiro, mensalista ou não. Quem confirmou dentro do prazo mantém a vaga.</li>`:''}
+  <li>Na lista de espera vale a ordem em que a pessoa confirmou.</li></ul>`);
   h+=D('Votação de notas',`<ul>
   <li>Quando o administrador <b>finaliza</b> a pelada, abre uma votação de <b>24 horas</b> só para quem jogou.</li>
   <li>Você dá uma nota <b>inteira de 1 a 10</b> para cada um dos outros jogadores. Não é possível votar em si mesmo.</li>
   <li>Os votos são <b>anônimos</b>. Você pode alterar os seus até o fim do prazo.</li>
   <li>Depois do prazo, os administradores veem a média de cada jogador, arredondada. Se ela for diferente da nota atual, qualquer administrador pode <b>aceitar ou negar</b> a mudança.</li></ul>`);
-  h+=D('Como os times são sorteados',`<p>O sorteio equilibra os times por <b>nota</b> (médias bem parecidas), <b>resistência</b>, <b>posição</b> (cada time recebe goleiros, zagueiros, meias e atacantes de forma parecida) e, com menos peso, a <b>idade</b>. Os times ficam com o mesmo número de jogadores (diferença de no máximo 1). A tela mostra os jogadores por time, a posição de cada um e a média de notas do time. As notas individuais não aparecem.</p>`);
+  h+=D('Como os times são sorteados',`<p>O sorteio equilibra os times por <b>nota</b> (médias bem parecidas), <b>resistência</b>, <b>posição</b> (cada time recebe goleiros, zagueiros, meias e atacantes de forma parecida) e, com menos peso, a <b>idade</b>. Os times ficam com o mesmo número de jogadores (diferença de no máximo 1). A tela mostra os jogadores de cada time com a posição. Notas e médias só aparecem para os administradores.</p>`);
   if(isAdm()){
     h+=`<h3 style="margin:14px 4px 10px">🔧 Para administradores</h3>`;
     h+=D('Criar uma pelada',`<ol><li>Aba <b>Peladas</b> → <b>+ Nova pelada</b>.</li><li>Informe título, data (dd/mm/aaaa), hora (24h, hh:mm), o número máximo de jogadores e, se quiser, o <b>local</b>: cole o link do Waze ou do Google Maps (ou o texto que o app compartilha) ou digite o endereço. Dá para alterar depois no bloco Administrar.</li><li>Toque em <b>Avisar contatos</b> dentro da pelada para mandar o convite ao grupo do WhatsApp.</li></ol>
     <p>O prazo de 24h dos mensalistas conta a partir da criação.</p>`);
     h+=D('Gerenciar jogadores',`<ul><li>Aba <b>Jogadores</b> → <b>Cadastrar jogador</b>: informe nome, e-mail, data de nascimento, posição, nota, velocidade/resistência e a senha inicial (mínimo 6 caracteres). Passe essa senha ao jogador.</li>
+    <li>Quem cria uma conta aparece em <b>Aguardando aprovação</b>: toque em <b>Aprovar</b> para liberar ou em <b>Negar</b> para deixar o jogador inativo (ele some do sistema). Inativos podem ser reativados na seção <b>Inativos</b>.</li>
     <li><b>Editar</b> permite mudar nota (1-10), velocidade/resistência (1-10), marcar <b>mensalista</b> e marcar <b>Administrador</b>. Você não pode remover o seu próprio acesso de admin.</li>
     <li>Jogadores sem nota aparecem em vermelho. No sorteio eles entram com nota 5 e velocidade 5.</li>
     <li>O limite é de 100 jogadores.</li></ul>`);
@@ -376,7 +417,7 @@ async function createPelada(){
   try{await FB.F.addDoc(FB.F.collection(FB.db,'peladas'),{titulo,data,local:loc.v,max,status:'aberta',createdAt:Date.now()});showNew=false;render()}catch(e){alert(errMsg(e))}
 }
 function openP(id){
-  curP=id;RS={};VT={};DC={};VD={};if(rsUnsub)rsUnsub();
+  FQ={};curP=id;RS={};VT={};DC={};VD={};if(rsUnsub)rsUnsub();
   const {F,db}=FB,subs=[F.onSnapshot(F.collection(db,'peladas',id,'rsvps'),s=>{RS={};s.forEach(d=>RS[d.id]=d.data());softRender()},e=>console.warn(e))];
   if(isAdm()){
     subs.push(F.onSnapshot(F.collection(db,'peladas',id,'votos'),s=>{VT={};s.forEach(d=>VT[d.id]=d.data());softRender()},e=>console.warn(e)));
@@ -403,11 +444,11 @@ function lists(p,now=Date.now()){
   return{dentro:[...prio.slice(0,p.max),...rest.slice(0,slots)],espera:[...prio.slice(p.max),...rest.slice(slots)],
     fora:us.filter(u=>it(u)==='fora'),sem:us.filter(u=>!RS[u.id]),win,dl};
 }
-const byNome=(a,b)=>a.nome.localeCompare(b.nome);
-function nameRow(u,extra=''){return `<div class="pl" style="padding:4px 0;border-top:1px solid #8883">${avatar(u,28)}<div class="i">${esc(u.nome)}${u.mensalista?' <span class="tag b">M</span>':''}</div><span class="tag gr">${POSN[u.pos]||''}</span>${extra}</div>`}
+function nameRow(u,extra=''){return `<div class="pl" ${FR('pel',u.nome)} style="padding:4px 0;border-top:1px solid #8883">${avatar(u,28)}<div class="i">${esc(u.nome)}${u.mensalista?' <span class="tag b">M</span>':''}</div><span class="tag gr">${POSN[u.pos]||''}</span>${extra}</div>`}
 
 function viewPelada(){
   const p=curPel();if(!p){closeP();return viewPeladas()}
+  const hasM=Object.values(U).some(u=>u.mensalista);
   const L=lists(p),open=p.status==='aberta';
   const inD=L.dentro.some(u=>u.id===ME.id),eIdx=L.espera.findIndex(u=>u.id===ME.id);
   const mine=RS[ME.id]&&RS[ME.id].intent;
@@ -415,16 +456,17 @@ function viewPelada(){
   let h=`<button class="s" style="margin-bottom:10px" onclick="closeP();render()">← Peladas</button>
   <div class="card"><h3>${esc(p.titulo)}</h3><div class="m">${fdate(p.data)} · <span class="tag ${STATUS[p.status][1]}">${STATUS[p.status][0]}</span></div>${localHtml(p.local)}
   <div class="m" style="margin-top:6px">Vagas: <b>${Math.min(L.dentro.length,p.max)}/${p.max}</b> · Espera: <b>${L.espera.length}</b></div>
-  ${open?(L.win?`<div class="m">⏱ Mensalistas têm prioridade até <b>${fms(L.dl)}</b>. Depois disso, as vagas livres são de quem confirmar primeiro.</div>`:'<div class="m">Prazo dos mensalistas encerrado: vagas livres por ordem de confirmação.</div>'):''}
+  ${open&&hasM?(L.win?`<div class="m">⏱ Mensalistas têm prioridade até <b>${fms(L.dl)}</b>. Depois disso, as vagas livres são de quem confirmar primeiro.</div>`:'<div class="m">Prazo dos mensalistas encerrado: vagas livres por ordem de confirmação.</div>'):''}
   ${ME.mensalista?'<div class="m">Você é mensalista.</div>':''}`;
   if(open) h+=`<div class="big">${st}</div><div class="row"><button class="p on" onclick="setRsvp('${ME.id}','dentro')">Estou dentro</button><button class="p offb" onclick="setRsvp('${ME.id}','fora')">Estou fora</button></div>`;
   h+='</div>';
+  h+=FIL('pel');
   if(p.status!=='aberta'&&p.times) h+=viewTimes(p);
   else{
-    h+=`<div class="card"><h3>✅ Dentro (${L.dentro.length})</h3>${L.dentro.sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Ninguém</span>'}</div>`;
+    h+=`<div class="card"><h3>✅ Dentro (${L.dentro.length})</h3>${L.dentro.slice().sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Ninguém</span>'}</div>`;
     if(L.espera.length)h+=`<div class="card"><h3>⏳ Lista de espera (${L.espera.length})</h3>${L.espera.map((u,i)=>nameRow(u,`<small>${i+1}º</small>`)).join('')}</div>`;
-    h+=`<div class="card"><h3><span class="xb">✕</span> Fora (${L.fora.length})</h3>${L.fora.sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Ninguém</span>'}</div>`;
-    h+=`<div class="card"><h3>Sem resposta (${L.sem.length})</h3>${L.sem.sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Todos responderam</span>'}</div>`;
+    h+=`<div class="card"><h3><span class="xb">✕</span> Fora (${L.fora.length})</h3>${L.fora.slice().sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Ninguém</span>'}</div>`;
+    h+=`<div class="card"><h3>Sem resposta (${L.sem.length})</h3>${L.sem.slice().sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Todos responderam</span>'}</div>`;
   }
   h+=viewVotacao(p);
   if(isAdm()) h+=viewApuracao(p);
@@ -433,9 +475,9 @@ function viewPelada(){
 }
 function viewTimes(p){
   return p.times.map((t,i)=>`<div class="card"><h3>${['🟢','🔵','🟡','🔴','🟣','🟠','⚪','⚫'][i%8]} Time ${i+1}</h3>
-  <div class="m">${t.jogadores.length} jogadores · média das notas <b>${t.nota.toFixed(2)}</b> · resistência <b>${t.vel.toFixed(2)}</b></div>
+  <div class="m">${t.jogadores.length} jogadores${isAdm()?` · média das notas <b>${avg(t.jogadores.map(j=>(R[j.id]||{}).nota||5)).toFixed(2)}</b> · resistência <b>${avg(t.jogadores.map(j=>(R[j.id]||{}).vel||5)).toFixed(2)}</b>`:''}</div>
   <div class="m" style="margin:4px 0 8px">${Balance.POS.map(x=>{const c=t.jogadores.filter(j=>j.pos===x).length;return c?`${c} ${POSN[x].toLowerCase()}`:''}).filter(Boolean).join(' · ')}</div>
-  ${t.jogadores.slice().sort((a,b)=>Balance.POS.indexOf(a.pos)-Balance.POS.indexOf(b.pos)).map(j=>`<div class="pl" style="padding:5px 0;border-top:1px solid #8883">${avatar(U[j.id]||j,28)}<div class="i">${esc(j.nome)}</div><span class="tag gr">${POSN[j.pos]}</span></div>`).join('')}</div>`).join('');
+  ${t.jogadores.slice().sort(byNome).map(j=>`<div class="pl" ${FR('pel',j.nome)} style="padding:5px 0;border-top:1px solid #8883">${avatar(U[j.id]||j,28)}<div class="i">${esc(j.nome)}</div><span class="tag gr">${POSN[j.pos]}</span></div>`).join('')}</div>`).join('');
 }
 /* ---------- Votação de notas ---------- */
 const NOTAS=[1,2,3,4,5,6,7,8,9,10];
@@ -447,9 +489,9 @@ function viewVotacao(p){
   h+=`<div class="m">Aberta até <b>${fms(p.votacaoAte)}</b>.</div>`;
   if(!mine) return h+'<div class="m">Só quem jogou esta pelada pode votar.</div></div>';
   const my=(VT[ME.id]||{}).notas||{};
-  h+='<p class="m">Dê uma nota inteira de 1 a 10 aos outros jogadores. Os votos são anônimos e você pode alterá-los até o fim do prazo.</p>';
-  h+=part.filter(id=>id!==ME.id&&U[id]).sort((a,b)=>U[a].nome.localeCompare(U[b].nome)).map(id=>{const cur=VD[id]!==undefined?VD[id]:my[id];
-    return `<div style="padding:6px 0;border-top:1px solid #8883"><div class="pl">${avatar(U[id],28)}<div class="i">${esc(U[id].nome)} <small>${POSN[U[id].pos]||''}</small></div></div>
+  h+='<p class="m">Dê uma nota inteira de 1 a 10 aos outros jogadores. Os votos são anônimos e você pode alterá-los até o fim do prazo.</p>'+FIL('vot');
+  h+=part.filter(id=>id!==ME.id&&U[id]).sort((a,b)=>byNome(U[a],U[b])).map(id=>{const cur=VD[id]!==undefined?VD[id]:my[id];
+    return `<div ${FR('vot',U[id].nome)} style="padding:6px 0;border-top:1px solid #8883"><div class="pl">${avatar(U[id],28)}<div class="i">${esc(U[id].nome)} <small>${POSN[U[id].pos]||''}</small></div></div>
     <div class="nt">${NOTAS.map(n=>`<label class="nb"><input type="radio" name="v_${id}" value="${n}" ${cur===n?'checked':''} onchange="VD['${id}']=${n}"><span>${n}</span></label>`).join('')}</div></div>`}).join('');
   return h+'<button class="p" onclick="sendVotes()">Enviar votos</button></div>';
 }
@@ -476,11 +518,11 @@ function viewApuracao(p){
   const open=Date.now()<p.votacaoAte,tot=(p.participantes||[]).length;
   const nv=Object.keys(VT).length,faltam=(p.participantes||[]).filter(id=>U[id]&&!VT[id]);
   let h=`<div class="card"><h3>🗳 Apuração (admin)</h3><div class="big">${nv} de ${tot} jogadores votaram</div>
-  ${faltam.length?`<div class="m">Ainda não votaram: ${faltam.map(u=>esc(U[u].nome)).join(', ')}</div>`:'<div class="m">Todos votaram.</div>'}`;
+  ${faltam.length?`<div class="m">Ainda não votaram: ${faltam.map(u=>U[u].nome).sort((a,b)=>a.localeCompare(b,'pt')).map(esc).join(', ')}</div>`:'<div class="m">Todos votaram.</div>'}`;
   if(open) return h+`<button class="s" style="width:100%;margin-top:8px" onclick="endVote()">Encerrar votação agora</button></div>`;
   const {out,same}=propostas(p);
   const pend=out.filter(x=>!DC[x.id]),done=out.filter(x=>DC[x.id]);
-  h+=pend.length?pend.map(x=>`<div class="pl" style="padding:6px 0;border-top:1px solid #8883">${avatar(U[x.id],28)}<div class="i"><b>${esc(U[x.id].nome)}</b><br><small>nota ${x.de==null?'—':x.de} → <b>${x.para}</b> (média ${x.media.toFixed(2)} · ${x.n} de ${Math.max(tot-1,1)} votos)</small></div>
+  h+=pend.length?pend.sort((a,b)=>byNome(U[a.id],U[b.id])).map(x=>`<div class="pl" style="padding:6px 0;border-top:1px solid #8883">${avatar(U[x.id],28)}<div class="i"><b>${esc(U[x.id].nome)}</b><br><small>nota ${x.de==null?'—':x.de} → <b>${x.para}</b> (média ${x.media.toFixed(2)} · ${x.n} de ${Math.max(tot-1,1)} votos)</small></div>
     <button class="s on" onclick="decide('${x.id}','aceita',${x.para})">Aceitar</button><button class="d" onclick="decide('${x.id}','negada',${x.para})">Negar</button></div>`).join(''):'<p class="m">Nenhuma alteração pendente.</p>';
   if(done.length)h+=`<div class="m" style="margin-top:8px">Decididas: ${done.map(x=>`${esc(U[x.id].nome)} (${DC[x.id].status})`).join(', ')}</div>`;
   if(same.length)h+=`<div class="m" style="margin-top:4px">${same.length} jogador(es) sem mudança de nota.</div>`;
@@ -514,8 +556,8 @@ function viewAdminP(p,L){
     <button class="s" style="width:100%;margin-top:8px" onclick="setStatus('aberta',true)">Cancelar sorteio (reabrir)</button>`;
   h+=`<button class="s" style="width:100%;margin-top:8px" onclick="notify()">📲 Avisar contatos</button>
   <button class="d" style="width:100%;margin-top:8px" onclick="delPelada()">Excluir pelada</button></div>`;
-  if(p.status==='aberta') h+=`<div class="card"><h3>Presenças (editar)</h3>${us.map(u=>{const i=RS[u.id]&&RS[u.id].intent;
-    return `<div class="pl" style="padding:5px 0;border-top:1px solid #8883"><div class="i">${esc(u.nome)}${u.mensalista?' <span class="tag b">M</span>':''}</div>
+  if(p.status==='aberta') h+=`<div class="card"><h3>Presenças (editar)</h3>${FIL('pres')}${us.map(u=>{const i=RS[u.id]&&RS[u.id].intent;
+    return `<div class="pl" ${FR('pres',u.nome)} style="padding:5px 0;border-top:1px solid #8883">${avatar(u,28)}<div class="i">${esc(u.nome)}${u.mensalista?' <span class="tag b">M</span>':''}</div>
     <button class="s ${i==='dentro'?'on':''}" onclick="setRsvp('${u.id}','dentro')">Dentro</button><button class="s ${i==='fora'?'offb':''}" onclick="setRsvp('${u.id}','fora')">Fora</button></div>`}).join('')}</div>`;
   return h;
 }
@@ -535,7 +577,7 @@ function askTeams(){
 async function sortear(k){
   const p=curPel(),pl=lists(p).dentro.map(u=>({id:u.id,nome:u.nome,pos:u.pos,idade:ageOf(u),nota:(R[u.id]||{}).nota||5,vel:(R[u.id]||{}).vel||5}));
   const teams=Balance.balance(pl,k);
-  const times=teams.map(t=>({nota:avg(t.map(x=>x.nota)),vel:avg(t.map(x=>x.vel)),jogadores:t.map(x=>({id:x.id,nome:x.nome,pos:x.pos}))}));
+  const times=teams.map(t=>({jogadores:t.map(x=>({id:x.id,nome:x.nome,pos:x.pos}))}));
   try{await FB.F.updateDoc(FB.F.doc(FB.db,'peladas',curP),{status:'sorteada',times,sorteadoEm:Date.now()})}catch(e){alert(errMsg(e))}
   render();window.scrollTo(0,0);
 }
@@ -557,7 +599,7 @@ async function delPelada(){
 function pelText(){
   const p=curPel(),url=location.origin+location.pathname;
   if(p.status==='finalizada'&&p.votacaoAte&&Date.now()<p.votacaoAte) return `🗳 Votação de notas aberta: ${p.titulo}\nQuem jogou pode avaliar os outros jogadores até ${fms(p.votacaoAte)}.\n\n${url}`;
-  if(p.times) return '⚽ '+p.titulo+'\n\n'+p.times.map((t,i)=>`*Time ${i+1}* (média ${t.nota.toFixed(2)})\n`+t.jogadores.map(j=>`- ${j.nome} (${POSN[j.pos]})`).join('\n')).join('\n\n');
+  if(p.times) return '⚽ '+p.titulo+'\n\n'+p.times.map((t,i)=>`*Time ${i+1}*\n`+t.jogadores.slice().sort(byNome).map(j=>`- ${j.nome} (${POSN[j.pos]})`).join('\n')).join('\n\n');
   return `⚽ ${p.titulo}\n${fdate(p.data)} · ${p.max} vagas${p.local?'\n📍 '+(/^https?:\/\//i.test(p.local)?p.local:p.local+' '+localUrl(p.local)):''}\n\nConfirme sua presença: ${url}`;
 }
 function notify(){
@@ -584,11 +626,20 @@ function sms(i){location.href='sms:'+digits(CT[i].tel)+'?&body='+encodeURICompon
 /* ---------- Admin: jogadores ---------- */
 function viewJog(){
   if(editU!==null) return formJog();
-  const us=Object.values(U).sort(byNome);
-  return `<button class="p" style="margin:0 0 10px" onclick="editU='new';render()">+ Cadastrar jogador (${us.length}/${MAXU})</button>`+
-  us.map(u=>{const r=R[u.id];return `<div class="card pl">${avatar(u,40)}<div class="i"><b>${esc(u.nome)}</b> <span class="tag gr">${POSN[u.pos]||'?'}</span>${u.mensalista?'<span class="tag b">Mensalista</span>':''}${u.admin?'<span class="tag o">Admin</span>':''}<br>
+  const us=Object.values(U).sort(byNome);let h='';
+  if(UP.length)h+=`<div class="card"><h3>⏳ Aguardando aprovação (${UP.length})</h3><p class="m">Só depois de aprovado o jogador vê as peladas. Se negar, ele fica inativo e some do sistema.</p>`+
+    UP.slice().sort(byNome).map(u=>`<div class="pl" style="padding:6px 0;border-top:1px solid #8883">${avatar(u,40)}<div class="i"><b>${esc(u.nome)}</b> <span class="tag gr">${POSN[u.pos]||'?'}</span><br><small>${esc(u.email)} · ${ageOf(u)} anos</small></div>
+    <button class="s on" onclick="setAcesso('${u.id}','aprovado')">Aprovar</button><button class="d" onclick="setAcesso('${u.id}','inativo')">Negar</button></div>`).join('')+'</div>';
+  h+=`<button class="p" style="margin:0 0 10px" onclick="editU='new';render()">+ Cadastrar jogador (${us.length}/${MAXU})</button>`+FIL('jog')+
+  us.map(u=>{const r=R[u.id];return `<div class="card pl" ${FR('jog',u.nome)}>${avatar(u,40)}<div class="i"><b>${esc(u.nome)}</b> <span class="tag gr">${POSN[u.pos]||'?'}</span>${u.mensalista?'<span class="tag b">Mensalista</span>':''}${u.admin?'<span class="tag o">Admin</span>':''}<br>
   <small>${esc(u.email)} · ${ageOf(u)} anos · ${r?`nota ${r.nota} · res. ${r.vel}`:'<span style="color:var(--r)">sem nota</span>'}</small></div>
   <button class="s" onclick="editU='${u.id}';render()">Editar</button></div>`}).join('');
+  if(UI.length)h+=`<details class="card"><summary>Inativos (${UI.length})</summary>`+UI.slice().sort(byNome).map(u=>`<div class="pl" style="padding:6px 0;border-top:1px solid #8883"><div class="i">${esc(u.nome)}<br><small>${esc(u.email)}</small></div><button class="s" onclick="setAcesso('${u.id}','aprovado')">Reativar</button></div>`).join('')+'</details>';
+  return h;
+}
+async function setAcesso(id,status){
+  if(status==='inativo'&&!confirm('Negar a entrada? O jogador ficará inativo e não aparecerá mais no sistema.'))return;
+  try{await FB.F.updateDoc(FB.F.doc(FB.db,'users',id),{status})}catch(e){alert(errMsg(e))}
 }
 function opts(v){return Array.from({length:10},(_,i)=>`<option ${i+1==v?'selected':''}>${i+1}</option>`).join('')}
 function formJog(){
@@ -621,7 +672,7 @@ async function saveU(){
       const sec=FB.A0.initializeApp(window.FIREBASE_CONFIG,'sec'+Date.now()),a2=FB.AU.getAuth(sec);
       uid=(await FB.AU.createUserWithEmailAndPassword(a2,email,(tmp))).user.uid;
       await FB.AU.signOut(a2);await FB.A0.deleteApp(sec);
-      await F.setDoc(F.doc(db,'users',uid),{...o,email,mensalista,admin,createdAt:Date.now()});
+      await F.setDoc(F.doc(db,'users',uid),{...o,email,mensalista,admin,status:'aprovado',createdAt:Date.now()});
     }else await F.updateDoc(F.doc(db,'users',uid),{...o,mensalista,admin:uid===ME.id?true:admin});
     await F.setDoc(F.doc(db,'ratings',uid),{nota,vel});
     editU=null;render();
