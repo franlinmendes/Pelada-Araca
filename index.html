@@ -39,13 +39,67 @@ h3{margin:4px 0 8px}.m{color:var(--m);font-size:14px}
 <button data-t="jog"><b>👥</b>Jogadores</button>
 <button data-t="cfg"><b>⚙️</b>Config</button>
 </nav>
+<script src="firebase-config.js"></script>
 <script src="balance.js"></script>
 <script>
 const KEY='pelada-araca-v1', MAX=100;
 const POSN={goleiro:'Goleiro',zagueiro:'Zagueiro',meia:'Meia',atacante:'Atacante'};
 let S=load(), tab='pelada', sel=new Set(), result=null, edit=null;
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.players)return s}catch(e){}return{players:[],contacts:[]}}
-function save(){localStorage.setItem(KEY,JSON.stringify(S))}
+function save(){localStorage.setItem(KEY,JSON.stringify(S));push()}
+/* ---------- Nuvem (Firebase Firestore) ---------- */
+let CODE=localStorage.getItem('araca-code')||'', cloud=null, syncMsg='';
+const CFG=()=>window.FIREBASE_CONFIG&&window.FIREBASE_CONFIG.projectId;
+function setSync(m){syncMsg=m;const e=document.getElementById('sync');if(e)e.textContent=m}
+function push(){
+  if(!cloud) return;
+  cloud.F.setDoc(cloud.ref,{players:S.players,contacts:S.contacts,updated:Date.now()}).then(()=>setSync('✓ sincronizado')).catch(e=>setSync('Erro ao enviar: '+e.code));
+}
+async function initCloud(){
+  const q=new URLSearchParams(location.search).get('turma');
+  if(q&&/^[A-Za-z0-9]{12,40}$/.test(q)&&CFG()){CODE=q;localStorage.setItem('araca-code',q);history.replaceState(null,'',location.pathname)}
+  if(!CFG()||!CODE) return;
+  try{
+    setSync('Conectando...');
+    const A=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+    const F=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const db=F.getFirestore(A.initializeApp(window.FIREBASE_CONFIG));
+    cloud={F,ref:F.doc(db,'turmas',CODE)};
+    F.onSnapshot(cloud.ref,snap=>{
+      if(snap.metadata.hasPendingWrites) return;
+      const d=snap.data();
+      if(!d){push();return}
+      S={players:d.players||[],contacts:d.contacts||[]};
+      localStorage.setItem(KEY,JSON.stringify(S));
+      const ids=new Set(S.players.map(p=>p.id));sel=new Set([...sel].filter(i=>ids.has(i)));
+      setSync('✓ sincronizado');
+      if(edit===null&&!result&&!document.querySelector('.modal'))render();
+    },e=>setSync('Erro de sincronização: '+e.code));
+  }catch(e){setSync('Sem conexão com a nuvem (usando dados locais)')}
+}
+function newCode(){const a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,x=>'abcdefghjkmnpqrstuvwxyz23456789'[x%31]).join('')}
+function joinCode(c){localStorage.setItem('araca-code',c);location.reload()}
+function createTurma(){joinCode(newCode())}
+function enterTurma(){const c=$('#tc').value.trim();if(!/^[A-Za-z0-9]{12,40}$/.test(c))return alert('Código inválido.');joinCode(c)}
+function leaveTurma(){if(!confirm('Sair da turma? Os dados continuam salvos neste aparelho.'))return;localStorage.removeItem('araca-code');location.reload()}
+function copyLink(){
+  const u=location.origin+location.pathname+'?turma='+CODE;
+  if(navigator.share)navigator.share({title:'Pelada Araca',text:'Entre na turma da pelada:',url:u}).catch(()=>{});
+  else navigator.clipboard.writeText(u).then(()=>alert('Link copiado!'));
+}
+function viewTurma(){
+  if(!CFG()) return `<div class="card"><h3>☁️ Turma compartilhada</h3><p class="m">Sincronização ainda não configurada.</p></div>`;
+  if(CODE) return `<div class="card"><h3>☁️ Turma compartilhada</h3>
+  <p class="m">Todos que entrarem com este link veem e editam os mesmos jogadores e contatos.</p>
+  <p class="m" id="sync">${esc(syncMsg)}</p>
+  <button class="p" onclick="copyLink()">Compartilhar link da turma</button>
+  <button class="d" style="width:100%;margin-top:8px" onclick="leaveTurma()">Sair da turma</button></div>`;
+  return `<div class="card"><h3>☁️ Turma compartilhada</h3>
+  <p class="m">Crie uma turma para todos usarem os mesmos dados. Os dados atuais deste aparelho são enviados para a nuvem.</p>
+  <button class="p" onclick="createTurma()">Criar turma</button>
+  <label style="display:block;margin-top:14px">Ou entre com um código</label><input id="tc" placeholder="código da turma">
+  <button class="s" style="width:100%" onclick="enterTurma()">Entrar</button></div>`;
+}
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -144,7 +198,7 @@ function delJog(){if(!confirm('Excluir jogador?'))return;S.players=S.players.fil
 
 /* ---------- Config ---------- */
 function viewCfg(){
-  return `<div class="card"><h3>📲 Celulares para notificação</h3>
+  return viewTurma()+`<div class="card"><h3>📲 Celulares para notificação</h3>
   ${S.contacts.map((c,i)=>`<div class="pl" style="margin:6px 0"><div class="i">${esc(c.nome||'(sem nome)')}<br><small>${esc(c.tel)}</small></div><button class="d" onclick="delC(${i})">✕</button></div>`).join('')||'<p class="m">Nenhum número.</p>'}
   <label>Nome</label><input id="c_n"><label>Celular (com DDD, ex: 81999998888)</label><input id="c_t" type="tel" inputmode="tel">
   <button class="p" onclick="addC()">Adicionar número</button></div>
@@ -153,7 +207,7 @@ function viewCfg(){
   <button class="p" onclick="exportCfg()">Exportar arquivo</button>
   <label style="display:block;margin-top:14px">Importar arquivo (.json)</label>
   <input type="file" accept=".json,application/json" onchange="importCfg(this.files[0])"></div>
-  <div class="card"><button class="d" onclick="if(confirm('Apagar TODOS os dados?')){S={players:[],contacts:[]};sel.clear();save();render()}">Apagar todos os dados</button></div>`;
+  <div class="card"><button class="d" onclick="if(confirm('Apagar TODOS os dados?'+(CODE?' A turma inteira será apagada para todos.':''))){S={players:[],contacts:[]};sel.clear();save();render()}">Apagar todos os dados</button></div>`;
 }
 function addC(){
   const tel=digits($('#c_t').value); if(tel.length<10) return alert('Número inválido. Use DDD + número.');
@@ -188,6 +242,6 @@ function importCfg(file){
   };
   r.readAsText(file);
 }
-render();
+render();initCloud();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js');
 </script></body></html>
