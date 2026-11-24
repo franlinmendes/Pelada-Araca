@@ -12,13 +12,18 @@
 <style>
 :root{--g:#0b6b3a;--g2:#0e8a4b;--bg:#f2f5f3;--c:#fff;--t:#17211b;--m:#6b7a70;--r:#d33;--b:#2a6fd6}
 @media(prefers-color-scheme:dark){:root{--bg:#101512;--c:#1a221d;--t:#e8efe9;--m:#93a398}}
-*{box-sizing:border-box}body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--t);padding-bottom:80px}
+*{box-sizing:border-box}body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--t);padding-bottom:24px}
 header{background:var(--g);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;font-weight:700;font-size:20px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center}
 header small{font-weight:400;font-size:13px;opacity:.9}
 main{padding:12px;max-width:640px;margin:auto}
-nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--c);border-top:1px solid #8884;padding-bottom:env(safe-area-inset-bottom);z-index:5}
-nav button{flex:1;border:0;background:none;padding:10px 2px;font-size:12px;color:var(--m)}nav button.on{color:var(--g2);font-weight:700}
-nav b{display:block;font-size:20px}
+nav{position:fixed;top:0;bottom:0;left:0;width:280px;max-width:84vw;background:var(--c);z-index:20;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);transform:translateX(-102%);transition:transform .22s ease;box-shadow:2px 0 12px #0004;overflow:auto}
+nav.open{transform:none}
+nav .dh{display:flex;align-items:center;gap:12px;background:var(--g);color:#fff;padding:18px 16px}nav .dh small{display:block;opacity:.85;font-size:13px}
+nav button{display:flex;align-items:center;gap:14px;width:100%;border:0;background:none;padding:14px 18px;font-size:16px;color:var(--t);text-align:left}
+nav button.on{background:#0e8a4b22;color:var(--g2);font-weight:700}nav button.out{margin-top:auto;color:var(--r)}
+nav b{font-size:20px;width:26px;text-align:center}
+.ov{position:fixed;inset:0;background:#0007;z-index:15;display:none}.ov.open{display:block}
+#mb{background:none;border:0;color:#fff;font-size:26px;padding:0 10px 0 0;line-height:1}
 .card{background:var(--c);border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:0 1px 3px #0002}
 button.p{background:var(--g2);color:#fff;border:0;border-radius:10px;padding:12px 16px;font-size:16px;font-weight:700;width:100%;margin-top:8px}
 button.s{background:none;border:1px solid var(--g2);color:var(--g2);border-radius:8px;padding:8px 12px;font-size:14px}
@@ -43,8 +48,9 @@ details.card summary{font-weight:700;cursor:pointer;padding:2px 0}details.card[o
 .big{font-size:18px;font-weight:700;text-align:center;padding:10px}
 a{color:var(--g2)}
 </style></head><body>
-<header><span>⚽ Pelada Araca</span><small id="who"></small></header>
+<header><span><button id="mb" onclick="toggleMenu()" aria-label="Menu" style="display:none">☰</button>⚽ Pelada Araca</span><small id="who"></small></header>
 <main id="app"><div class="card">Carregando...</div></main>
+<div class="ov" id="ov" onclick="toggleMenu(false)"></div>
 <nav id="nav" style="display:none"></nav>
 <script src="firebase-config.js"></script>
 <script src="balance.js"></script>
@@ -136,20 +142,23 @@ function render(){
   $('#who').textContent=ME?ME.nome+(ME.admin?' (adm)':''):'';
   if(!FB.auth) return;
   if(USER===undefined){a.innerHTML='<div class="card">Carregando...</div>';nav.style.display='none';return}
-  if(!USER){nav.style.display='none';a.innerHTML=viewLogin();return}
+  if(!USER){nav.style.display='none';$('#mb').style.display='none';a.innerHTML=viewLogin();return}
   if(!ME){
-    nav.style.display='none';
+    nav.style.display='none';$('#mb').style.display='none';
     a.innerHTML=(registering||!usersLoaded)?'<div class="card">Carregando...</div>':viewComplete();return;
   }
   const tabs=[['peladas','⚽','Peladas']];
   if(ME.admin)tabs.push(['jog','👥','Jogadores'],['cfg','📲','Avisos']);
   tabs.push(['perfil','👤','Perfil'],['ajuda','❓','Ajuda']);
-  nav.style.display='flex';
-  nav.innerHTML=tabs.map(t=>`<button class="${tab===t[0]?'on':''}" onclick="setTab('${t[0]}')"><b>${t[1]}</b>${t[2]}</button>`).join('');
+  nav.style.display='flex';$('#mb').style.display='';
+  nav.innerHTML=`<div class="dh">${avatar(ME,44)}<div><b style="width:auto;text-align:left">${esc(ME.nome)}</b><small>${ME.admin?'Administrador':ME.mensalista?'Mensalista':'Jogador'}</small></div></div>`+
+    tabs.map(t=>`<button class="${tab===t[0]?'on':''}" onclick="setTab('${t[0]}')"><b>${t[1]}</b>${t[2]}</button>`).join('')+
+    `<button class="out" onclick="toggleMenu(false);FB.AU.signOut(FB.auth)"><b>🚪</b>Sair</button>`;
   if(tab==='jog'&&!ME.admin)tab='peladas';
   a.innerHTML=tab==='peladas'?(curP?viewPelada():viewPeladas()):tab==='jog'?viewJog():tab==='cfg'?viewCfg():tab==='ajuda'?viewAjuda():viewPerfil();
 }
-function setTab(t){tab=t;closeP();editU=null;showNew=false;render();window.scrollTo(0,0)}
+function toggleMenu(v){const o=v===undefined?!$('#nav').classList.contains('open'):v;$('#nav').classList.toggle('open',o);$('#ov').classList.toggle('open',o)}
+function setTab(t){toggleMenu(false);tab=t;closeP();editU=null;showNew=false;render();window.scrollTo(0,0)}
 
 /* ---------- Login / cadastro ---------- */
 function posOpts(v){return Object.entries(POSN).map(([k,n])=>`<option value="${k}" ${k===v?'selected':''}>${n}</option>`).join('')}
