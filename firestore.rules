@@ -42,6 +42,25 @@ service cloud.firestore {
       allow read: if signed();
       allow write: if isAdmin();
 
+      // Votação de notas: só participantes, só até o prazo, só em jogadores da pelada, nunca em si mesmo.
+      // Cada um lê apenas o próprio voto; admin lê todos (e só ele vê as médias).
+      match /votos/{voter} {
+        allow get: if isAdmin() || request.auth.uid == voter;
+        allow list: if isAdmin();
+        allow create, update: if request.auth.uid == voter &&
+          get(/databases/$(database)/documents/peladas/$(pid)).data.status == 'finalizada' &&
+          request.time.toMillis() < get(/databases/$(database)/documents/peladas/$(pid)).data.votacaoAte &&
+          request.auth.uid in get(/databases/$(database)/documents/peladas/$(pid)).data.participantes &&
+          request.resource.data.notas.keys().hasOnly(get(/databases/$(database)/documents/peladas/$(pid)).data.participantes) &&
+          !(request.auth.uid in request.resource.data.notas.keys());
+        allow delete: if isAdmin();
+      }
+
+      // Decisões do admin sobre as notas propostas.
+      match /decisoes/{uid} {
+        allow read, write: if isAdmin();
+      }
+
       // Presença: cada um muda a própria (só com a pelada aberta); admin muda a de qualquer um.
       match /rsvps/{uid} {
         allow read: if signed();

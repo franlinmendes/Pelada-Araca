@@ -74,7 +74,7 @@ function pickPhoto(p,inp){
 }
 const fdate=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s||'');return m?`${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`:''};
 
-let FB={}, USER=undefined, ME=null, U={}, R={}, PL=[], RS={}, CT=[], GRP='';
+let FB={}, USER=undefined, ME=null, U={}, R={}, PL=[], RS={}, VT={}, DC={}, CT=[], GRP='';
 let tab='peladas', curP=null, editU=null, showNew=false, mode='login', registering=false, usersLoaded=false;
 let unsubs=[], rsUnsub=null, subAdmin=false;
 const isAdm=()=>!!(ME&&ME.admin);
@@ -268,11 +268,16 @@ async function createPelada(){
   try{await FB.F.addDoc(FB.F.collection(FB.db,'peladas'),{titulo,data,max,status:'aberta',createdAt:Date.now()});showNew=false;render()}catch(e){alert(errMsg(e))}
 }
 function openP(id){
-  curP=id;RS={};if(rsUnsub)rsUnsub();
-  rsUnsub=FB.F.onSnapshot(FB.F.collection(FB.db,'peladas',id,'rsvps'),s=>{RS={};s.forEach(d=>RS[d.id]=d.data());softRender()},e=>console.warn(e));
+  curP=id;RS={};VT={};DC={};if(rsUnsub)rsUnsub();
+  const {F,db}=FB,subs=[F.onSnapshot(F.collection(db,'peladas',id,'rsvps'),s=>{RS={};s.forEach(d=>RS[d.id]=d.data());softRender()},e=>console.warn(e))];
+  if(isAdm()){
+    subs.push(F.onSnapshot(F.collection(db,'peladas',id,'votos'),s=>{VT={};s.forEach(d=>VT[d.id]=d.data());softRender()},e=>console.warn(e)));
+    subs.push(F.onSnapshot(F.collection(db,'peladas',id,'decisoes'),s=>{DC={};s.forEach(d=>DC[d.id]=d.data());softRender()},e=>console.warn(e)));
+  }else subs.push(F.onSnapshot(F.doc(db,'peladas',id,'votos',ME.id),s=>{VT=s.exists()?{[ME.id]:s.data()}:{};softRender()},e=>console.warn(e)));
+  rsUnsub=()=>subs.forEach(f=>f());
   render();window.scrollTo(0,0);
 }
-function closeP(){curP=null;if(rsUnsub)rsUnsub();rsUnsub=null;RS={}}
+function closeP(){curP=null;if(rsUnsub)rsUnsub();rsUnsub=null;RS={};VT={};DC={}}
 const curPel=()=>PL.find(p=>p.id===curP);
 
 // Mensalistas têm 24h (a partir da criação da pelada) para responder; nesse prazo as vagas deles ficam reservadas.
@@ -313,6 +318,8 @@ function viewPelada(){
     h+=`<div class="card"><h3>❌ Fora (${L.fora.length})</h3>${L.fora.sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Ninguém</span>'}</div>`;
     h+=`<div class="card"><h3>Sem resposta (${L.sem.length})</h3>${L.sem.sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Todos responderam</span>'}</div>`;
   }
+  h+=viewVotacao(p);
+  if(isAdm()) h+=viewApuracao(p);
   if(isAdm()) h+=viewAdminP(p,L);
   return h;
 }
@@ -321,6 +328,63 @@ function viewTimes(p){
   <div class="m">${t.jogadores.length} jogadores · média das notas <b>${t.nota.toFixed(2)}</b> · resistência <b>${t.vel.toFixed(2)}</b></div>
   <div class="m" style="margin:4px 0 8px">${Balance.POS.map(x=>{const c=t.jogadores.filter(j=>j.pos===x).length;return c?`${c} ${POSN[x].toLowerCase()}`:''}).filter(Boolean).join(' · ')}</div>
   ${t.jogadores.slice().sort((a,b)=>Balance.POS.indexOf(a.pos)-Balance.POS.indexOf(b.pos)).map(j=>`<div class="pl" style="padding:5px 0;border-top:1px solid #8883">${avatar(U[j.id]||j,28)}<div class="i">${esc(j.nome)}</div><span class="tag gr">${POSN[j.pos]}</span></div>`).join('')}</div>`).join('');
+}
+/* ---------- Votação de notas ---------- */
+const NOTAS=[1,2,3,4,5,6,7,8,9,10];
+function viewVotacao(p){
+  if(!p.votacaoAte||p.status!=='finalizada')return '';
+  const open=Date.now()<p.votacaoAte,part=p.participantes||[],mine=part.includes(ME.id);
+  let h='<div class="card"><h3>🗳 Votação de notas</h3>';
+  if(!open) return h+'<div class="m">Votação encerrada.</div></div>';
+  h+=`<div class="m">Aberta até <b>${fms(p.votacaoAte)}</b>.</div>`;
+  if(!mine) return h+'<div class="m">Só quem jogou esta pelada pode votar.</div></div>';
+  const my=(VT[ME.id]||{}).notas||{};
+  h+='<p class="m">Dê uma nota inteira de 1 a 10 aos outros jogadores. Os votos são anônimos e você pode alterá-los até o fim do prazo.</p>';
+  h+=part.filter(id=>id!==ME.id&&U[id]).sort((a,b)=>U[a].nome.localeCompare(U[b].nome)).map(id=>`<div class="pl" style="padding:4px 0;border-top:1px solid #8883">${avatar(U[id],28)}<div class="i">${esc(U[id].nome)}</div>
+    <select id="v_${id}" style="width:80px;margin:0"><option value="">—</option>${NOTAS.map(n=>`<option ${my[id]===n?'selected':''}>${n}</option>`).join('')}</select></div>`).join('');
+  return h+'<button class="p" onclick="sendVotes()">Enviar votos</button></div>';
+}
+async function sendVotes(){
+  const p=curPel(),notas={};
+  (p.participantes||[]).filter(id=>id!==ME.id).forEach(id=>{const e=$('#v_'+id);if(e&&e.value)notas[id]=parseInt(e.value)});
+  if(!Object.keys(notas).length)return alert('Dê pelo menos uma nota.');
+  try{await FB.F.setDoc(FB.F.doc(FB.db,'peladas',curP,'votos',ME.id),{notas,ts:Date.now()});alert('Votos enviados!')}catch(e){alert(errMsg(e))}
+}
+// Admin: apuração. Média arredondada diferente da nota guardada => proposta de alteração.
+function propostas(p){
+  const out=[],same=[];
+  (p.participantes||[]).forEach(id=>{
+    if(!U[id])return;
+    const v=Object.values(VT).map(x=>x.notas&&x.notas[id]).filter(n=>Number.isInteger(n)&&n>=1&&n<=10);
+    if(!v.length)return;
+    const media=avg(v),para=Math.min(10,Math.max(1,Math.round(media))),de=(R[id]||{}).nota;
+    (para!==de?out:same).push({id,media,para,de,n:v.length});
+  });
+  return{out,same};
+}
+function viewApuracao(p){
+  if(!p.votacaoAte||p.status!=='finalizada')return '';
+  const open=Date.now()<p.votacaoAte,tot=(p.participantes||[]).length;
+  let h=`<div class="card"><h3>🗳 Apuração (admin)</h3><div class="m">${Object.keys(VT).length} de ${tot} jogadores votaram.</div>`;
+  if(open) return h+`<button class="s" style="width:100%;margin-top:8px" onclick="endVote()">Encerrar votação agora</button></div>`;
+  const {out,same}=propostas(p);
+  const pend=out.filter(x=>!DC[x.id]),done=out.filter(x=>DC[x.id]);
+  h+=pend.length?pend.map(x=>`<div class="pl" style="padding:6px 0;border-top:1px solid #8883">${avatar(U[x.id],28)}<div class="i"><b>${esc(U[x.id].nome)}</b><br><small>nota ${x.de==null?'—':x.de} → <b>${x.para}</b> (média ${x.media.toFixed(2)}, ${x.n} voto${x.n>1?'s':''})</small></div>
+    <button class="s on" onclick="decide('${x.id}','aceita',${x.para})">Aceitar</button><button class="d" onclick="decide('${x.id}','negada',${x.para})">Negar</button></div>`).join(''):'<p class="m">Nenhuma alteração pendente.</p>';
+  if(done.length)h+=`<div class="m" style="margin-top:8px">Decididas: ${done.map(x=>`${esc(U[x.id].nome)} (${DC[x.id].status})`).join(', ')}</div>`;
+  if(same.length)h+=`<div class="m" style="margin-top:4px">${same.length} jogador(es) sem mudança de nota.</div>`;
+  return h+'</div>';
+}
+async function decide(id,status,para){
+  const {F,db}=FB,de=(R[id]||{}).nota;
+  try{
+    if(status==='aceita')await F.setDoc(F.doc(db,'ratings',id),{nota:para},{merge:true});
+    await F.setDoc(F.doc(db,'peladas',curP,'decisoes',id),{status,de:de==null?null:de,para,por:ME.id,ts:Date.now()});
+  }catch(e){alert(errMsg(e))}
+}
+async function endVote(){
+  if(!confirm('Encerrar a votação agora?'))return;
+  try{await FB.F.updateDoc(FB.F.doc(FB.db,'peladas',curP),{votacaoAte:Date.now()})}catch(e){alert(errMsg(e))}
 }
 async function setRsvp(uid,intent){
   const cur=RS[uid]&&RS[uid].intent;if(cur===intent)return;
@@ -364,7 +428,8 @@ async function sortear(k){
 }
 async function setStatus(s,clear){
   if(s==='finalizada'&&!confirm('Finalizar a pelada?'))return;
-  const upd={status:s};if(clear)upd.times=FB.F.deleteField();
+  const upd={status:s},p=curPel();if(clear)upd.times=FB.F.deleteField();
+  if(s==='finalizada'){const now=Date.now();upd.finalizadaEm=now;upd.votacaoAte=now+PRAZO;upd.participantes=[...new Set((p.times||[]).flatMap(t=>t.jogadores.map(j=>j.id)))]}
   try{await FB.F.updateDoc(FB.F.doc(FB.db,'peladas',curP),upd)}catch(e){alert(errMsg(e))}
 }
 async function delPelada(){
@@ -373,6 +438,7 @@ async function delPelada(){
 }
 function pelText(){
   const p=curPel(),url=location.origin+location.pathname;
+  if(p.status==='finalizada'&&p.votacaoAte&&Date.now()<p.votacaoAte) return `🗳 Votação de notas aberta: ${p.titulo}\nQuem jogou pode avaliar os outros jogadores até ${fms(p.votacaoAte)}.\n\n${url}`;
   if(p.times) return '⚽ '+p.titulo+'\n\n'+p.times.map((t,i)=>`*Time ${i+1}* (média ${t.nota.toFixed(2)})\n`+t.jogadores.map(j=>`- ${j.nome} (${POSN[j.pos]})`).join('\n')).join('\n\n');
   return `⚽ ${p.titulo}\n${fdate(p.data)} · ${p.max} vagas\n\nConfirme sua presença: ${url}`;
 }
