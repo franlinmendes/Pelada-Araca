@@ -58,6 +58,20 @@ const fromBR=t=>{const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(t.trim());if(!m)retu
   return(y>=1900&&x.getFullYear()===y&&x.getMonth()===mo-1&&x.getDate()===d)?`${m[3]}-${m[2]}-${m[1]}`:''};
 const DATEIN=(id,v='')=>`<input id="${id}" inputmode="numeric" placeholder="dd/mm/aaaa" maxlength="10" autocomplete="off" oninput="maskDate(this)" value="${esc(v)}">`;
 const maskTime=el=>{const d=el.value.replace(/\D/g,'').slice(0,4);el.value=d.length>2?d.slice(0,2)+':'+d.slice(2):d};
+let PH={};
+const avatar=(u,s=32)=>(u&&typeof u.foto==='string'&&u.foto.startsWith('data:image/jpeg;base64,'))
+  ?`<img src="${u.foto}" alt="" style="width:${s}px;height:${s}px;border-radius:50%;object-fit:cover;flex:none">`
+  :`<span style="width:${s}px;height:${s}px;border-radius:50%;background:var(--g2);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;flex:none;font-size:${Math.round(s*.45)}px">${esc(((u&&u.nome)||'?')[0].toUpperCase())}</span>`;
+const photoField=(p,u)=>`<div class="pl" style="margin:6px 0"><span id="ph_${p}">${avatar(PH[p]?{foto:PH[p],nome:''}:u,64)}</span>
+  <div class="i"><button type="button" class="s" onclick="this.nextElementSibling.click()">📷 ${PH[p]||(u&&u.foto)?'Trocar foto':'Adicionar foto'}</button><input type="file" accept="image/*" hidden onchange="pickPhoto('${p}',this)"></div></div>`;
+function pickPhoto(p,inp){
+  const f=inp.files[0];if(!f)return;const url=URL.createObjectURL(f),img=new Image();
+  img.onload=()=>{const c=document.createElement('canvas');c.width=c.height=128;const m=Math.min(img.width,img.height);
+    c.getContext('2d').drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,128,128);
+    PH[p]=c.toDataURL('image/jpeg',0.7);URL.revokeObjectURL(url);
+    const e=$('#ph_'+p);if(e)e.innerHTML=avatar({foto:PH[p],nome:''},64)};
+  img.onerror=()=>alert('Não foi possível ler essa imagem.');img.src=url;
+}
 const fdate=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s||'');return m?`${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`:''};
 
 let FB={}, USER=undefined, ME=null, U={}, R={}, PL=[], RS={}, CT=[], GRP='';
@@ -78,7 +92,7 @@ async function boot(){
 }
 function stopAll(){unsubs.forEach(u=>u());unsubs=[];if(rsUnsub)rsUnsub();rsUnsub=null;subAdmin=false}
 function onUser(u){
-  USER=u;stopAll();ME=null;U={};R={};PL=[];RS={};CT=[];curP=null;editU=null;usersLoaded=false;tab='peladas';
+  USER=u;PH={};stopAll();ME=null;U={};R={};PL=[];RS={};CT=[];curP=null;editU=null;usersLoaded=false;tab='peladas';
   if(u) startSubs();
   render();
 }
@@ -137,6 +151,7 @@ function setTab(t){tab=t;closeP();editU=null;showNew=false;render();window.scrol
 function posOpts(v){return Object.entries(POSN).map(([k,n])=>`<option value="${k}" ${k===v?'selected':''}>${n}</option>`).join('')}
 function viewLogin(){
   if(mode==='signup') return `<div class="card"><h3>Criar conta</h3>
+  ${photoField('s')}
   <label>Nome</label><input id="s_n" autocomplete="name">
   <label>E-mail (será seu login)</label><input id="s_e" type="email" autocomplete="email">
   <label>Senha (mín. 6 caracteres)</label><input id="s_p" type="password" autocomplete="new-password">
@@ -178,7 +193,7 @@ async function doReset(){
 function readProfile(p){
   const nome=$('#'+p+'_n')?$('#'+p+'_n').value.trim():'';
   const nascimento=fromBR($('#'+p+'_i').value),pos=$('#'+p+'_pos').value;
-  return{nome,nascimento,pos};
+  const o={nome,nascimento,pos};if(PH[p])o.foto=PH[p];return o;
 }
 function validProfile(o,needNome=true){
   if(needNome&&!o.nome){alert('Informe o nome.');return false}
@@ -200,7 +215,7 @@ async function doSignup(){
   registering=false;render();
 }
 function viewComplete(){
-  return `<div class="card"><h3>Complete seu cadastro</h3><p class="m">${esc(USER.email)}</p>
+  return `<div class="card"><h3>Complete seu cadastro</h3>${photoField('c')}<p class="m">${esc(USER.email)}</p>
   <label>Nome</label><input id="c_n"><div class="row"><div><label>Data de nascimento</label>${DATEIN('c_i')}</div>
   <div><label>Posição</label><select id="c_pos"><option value="">Escolha</option>${posOpts('')}</select></div></div>
   <button class="p" onclick="doComplete()">Salvar</button>
@@ -213,7 +228,7 @@ async function doComplete(){
 
 /* ---------- Perfil ---------- */
 function viewPerfil(){
-  return `<div class="card"><h3>Meu perfil</h3><p class="m">${esc(ME.email)}${ME.mensalista?' · <span class="tag b">Mensalista</span>':''}${ME.admin?' <span class="tag o">Admin</span>':''}</p>
+  return `<div class="card"><h3>Meu perfil</h3>${photoField('p',ME)}<p class="m">${esc(ME.email)}${ME.mensalista?' · <span class="tag b">Mensalista</span>':''}${ME.admin?' <span class="tag o">Admin</span>':''}</p>
   <label>Nome</label><input id="p_n" value="${esc(ME.nome)}">
   <div class="row"><div><label>Data de nascimento</label>${DATEIN('p_i',toBR(ME.nascimento))}</div>
   <div><label>Posição</label><select id="p_pos">${posOpts(ME.pos)}</select></div></div>
@@ -272,7 +287,7 @@ function lists(p){
   return{dentro,espera,fora:us.filter(u=>it(u)==='fora'),sem:us.filter(u=>!RS[u.id])};
 }
 const byNome=(a,b)=>a.nome.localeCompare(b.nome);
-function nameRow(u,extra=''){return `<div class="pl" style="padding:4px 0;border-top:1px solid #8883"><div class="i">${esc(u.nome)}${u.mensalista?' <span class="tag b">M</span>':''}</div><span class="tag gr">${POSN[u.pos]||''}</span>${extra}</div>`}
+function nameRow(u,extra=''){return `<div class="pl" style="padding:4px 0;border-top:1px solid #8883">${avatar(u,28)}<div class="i">${esc(u.nome)}${u.mensalista?' <span class="tag b">M</span>':''}</div><span class="tag gr">${POSN[u.pos]||''}</span>${extra}</div>`}
 
 function viewPelada(){
   const p=curPel();if(!p){closeP();return viewPeladas()}
@@ -300,7 +315,7 @@ function viewTimes(p){
   return p.times.map((t,i)=>`<div class="card"><h3>${['🟢','🔵','🟡','🔴','🟣','🟠','⚪','⚫'][i%8]} Time ${i+1}</h3>
   <div class="m">${t.jogadores.length} jogadores · média das notas <b>${t.nota.toFixed(2)}</b> · resistência <b>${t.vel.toFixed(2)}</b></div>
   <div class="m" style="margin:4px 0 8px">${Balance.POS.map(x=>{const c=t.jogadores.filter(j=>j.pos===x).length;return c?`${c} ${POSN[x].toLowerCase()}`:''}).filter(Boolean).join(' · ')}</div>
-  ${t.jogadores.slice().sort((a,b)=>Balance.POS.indexOf(a.pos)-Balance.POS.indexOf(b.pos)).map(j=>`<div class="pl" style="padding:5px 0;border-top:1px solid #8883"><div class="i">${esc(j.nome)}</div><span class="tag gr">${POSN[j.pos]}</span></div>`).join('')}</div>`).join('');
+  ${t.jogadores.slice().sort((a,b)=>Balance.POS.indexOf(a.pos)-Balance.POS.indexOf(b.pos)).map(j=>`<div class="pl" style="padding:5px 0;border-top:1px solid #8883">${avatar(U[j.id]||j,28)}<div class="i">${esc(j.nome)}</div><span class="tag gr">${POSN[j.pos]}</span></div>`).join('')}</div>`).join('');
 }
 async function setRsvp(uid,intent){
   const cur=RS[uid]&&RS[uid].intent;if(cur===intent)return;
@@ -382,7 +397,7 @@ function viewJog(){
   if(editU!==null) return formJog();
   const us=Object.values(U).sort(byNome);
   return `<button class="p" style="margin:0 0 10px" onclick="editU='new';render()">+ Cadastrar jogador (${us.length}/${MAXU})</button>`+
-  us.map(u=>{const r=R[u.id];return `<div class="card pl"><div class="i"><b>${esc(u.nome)}</b> <span class="tag gr">${POSN[u.pos]||'?'}</span>${u.mensalista?'<span class="tag b">Mensalista</span>':''}${u.admin?'<span class="tag o">Admin</span>':''}<br>
+  us.map(u=>{const r=R[u.id];return `<div class="card pl">${avatar(u,40)}<div class="i"><b>${esc(u.nome)}</b> <span class="tag gr">${POSN[u.pos]||'?'}</span>${u.mensalista?'<span class="tag b">Mensalista</span>':''}${u.admin?'<span class="tag o">Admin</span>':''}<br>
   <small>${esc(u.email)} · ${ageOf(u)} anos · ${r?`nota ${r.nota} · res. ${r.vel}`:'<span style="color:var(--r)">sem nota</span>'}</small></div>
   <button class="s" onclick="editU='${u.id}';render()">Editar</button></div>`}).join('');
 }

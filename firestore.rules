@@ -3,6 +3,10 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function signed() { return request.auth != null; }
+    function fotoOk() {
+      return !('foto' in request.resource.data) ||
+        (request.resource.data.foto is string && request.resource.data.foto.size() < 30000);
+    }
     function isAdmin() {
       return signed() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.admin == true;
@@ -11,14 +15,15 @@ service cloud.firestore {
     // Perfis. Usuário comum só altera nome, idade e posição; admin altera tudo.
     match /users/{uid} {
       allow read: if signed();
-      allow create: if signed() && (
+      allow create: if signed() && fotoOk() && (
         isAdmin() ||
         (request.auth.uid == uid &&
          request.resource.data.admin == false &&
          request.resource.data.mensalista == false));
       allow update: if isAdmin() || (
         request.auth.uid == uid &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome', 'idade', 'nascimento', 'pos']));
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome', 'idade', 'nascimento', 'pos', 'foto']) &&
+        fotoOk());
       allow delete: if isAdmin();
     }
 
