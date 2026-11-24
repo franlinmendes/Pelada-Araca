@@ -52,6 +52,11 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
 const digits=t=>String(t).replace(/\D/g,'');
 const ageOf=u=>{if(u.nascimento){const b=new Date(u.nascimento+'T00:00:00'),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a}return u.idade||0};
+const maskDate=el=>{const d=el.value.replace(/\D/g,'').slice(0,8);el.value=d.length>4?d.slice(0,2)+'/'+d.slice(2,4)+'/'+d.slice(4):d.length>2?d.slice(0,2)+'/'+d.slice(2):d};
+const toBR=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');return m?m[3]+'/'+m[2]+'/'+m[1]:''};
+const fromBR=t=>{const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(t.trim());if(!m)return'';const d=+m[1],mo=+m[2],y=+m[3],x=new Date(y,mo-1,d);
+  return(y>=1900&&x.getFullYear()===y&&x.getMonth()===mo-1&&x.getDate()===d)?`${m[3]}-${m[2]}-${m[1]}`:''};
+const DATEIN=(id,v='')=>`<input id="${id}" inputmode="numeric" placeholder="dd/mm/aaaa" maxlength="10" autocomplete="off" oninput="maskDate(this)" value="${esc(v)}">`;
 const fdate=s=>{const d=new Date(s);return isNaN(d)?'':d.toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})};
 
 let FB={}, USER=undefined, ME=null, U={}, R={}, PL=[], RS={}, CT=[];
@@ -134,7 +139,7 @@ function viewLogin(){
   <label>Nome</label><input id="s_n" autocomplete="name">
   <label>E-mail (será seu login)</label><input id="s_e" type="email" autocomplete="email">
   <label>Senha (mín. 6 caracteres)</label><input id="s_p" type="password" autocomplete="new-password">
-  <div class="row"><div><label>Data de nascimento</label><input id="s_i" type="date"></div>
+  <div class="row"><div><label>Data de nascimento</label>${DATEIN('s_i')}</div>
   <div><label>Posição</label><select id="s_pos"><option value="">Escolha</option>${posOpts('')}</select></div></div>
   <button class="p" onclick="doSignup()">Cadastrar</button>
   <button class="s" style="width:100%;margin-top:8px" onclick="mode='login';render()">Já tenho conta</button></div>`;
@@ -171,13 +176,13 @@ async function doReset(){
 }
 function readProfile(p){
   const nome=$('#'+p+'_n')?$('#'+p+'_n').value.trim():'';
-  const nascimento=$('#'+p+'_i').value,pos=$('#'+p+'_pos').value;
+  const nascimento=fromBR($('#'+p+'_i').value),pos=$('#'+p+'_pos').value;
   return{nome,nascimento,pos};
 }
 function validProfile(o,needNome=true){
   if(needNome&&!o.nome){alert('Informe o nome.');return false}
   const a=o.nascimento?ageOf({nascimento:o.nascimento}):0;
-  if(!(a>=10&&a<=90)){alert('Informe uma data de nascimento válida.');return false}
+  if(!(a>=10&&a<=90)){alert('Informe a data de nascimento válida (dd/mm/aaaa).');return false}
   if(!POSN[o.pos]){alert('Escolha a posição.');return false}
   return true;
 }
@@ -195,7 +200,7 @@ async function doSignup(){
 }
 function viewComplete(){
   return `<div class="card"><h3>Complete seu cadastro</h3><p class="m">${esc(USER.email)}</p>
-  <label>Nome</label><input id="c_n"><div class="row"><div><label>Data de nascimento</label><input id="c_i" type="date"></div>
+  <label>Nome</label><input id="c_n"><div class="row"><div><label>Data de nascimento</label>${DATEIN('c_i')}</div>
   <div><label>Posição</label><select id="c_pos"><option value="">Escolha</option>${posOpts('')}</select></div></div>
   <button class="p" onclick="doComplete()">Salvar</button>
   <button class="s" style="width:100%;margin-top:8px" onclick="FB.AU.signOut(FB.auth)">Sair</button></div>`;
@@ -209,7 +214,7 @@ async function doComplete(){
 function viewPerfil(){
   return `<div class="card"><h3>Meu perfil</h3><p class="m">${esc(ME.email)}${ME.mensalista?' · <span class="tag b">Mensalista</span>':''}${ME.admin?' <span class="tag o">Admin</span>':''}</p>
   <label>Nome</label><input id="p_n" value="${esc(ME.nome)}">
-  <div class="row"><div><label>Data de nascimento</label><input id="p_i" type="date" value="${esc(ME.nascimento||'')}"></div>
+  <div class="row"><div><label>Data de nascimento</label>${DATEIN('p_i',toBR(ME.nascimento))}</div>
   <div><label>Posição</label><select id="p_pos">${posOpts(ME.pos)}</select></div></div>
   <button class="p" onclick="saveProfile()">Salvar</button></div>
   <button class="d" style="width:100%" onclick="FB.AU.signOut(FB.auth)">Sair da conta</button>`;
@@ -376,7 +381,7 @@ function formJog(){
   <label>Nome</label><input id="e_n" value="${esc(u.nome)}">
   <label>E-mail</label><input id="e_e" type="email" value="${esc(u.email)}" ${isNew?'':'disabled'}>
   ${isNew?'<label>Senha inicial (mín. 6 caracteres)</label><input id="e_pw" value="123456"><p class="m">Passe essa senha ao jogador. Se ele esquecer, use "Esqueci minha senha" na tela de login.</p>':''}
-  <div class="row"><div><label>Data de nascimento</label><input id="e_i" type="date" value="${esc(u.nascimento||'')}"></div>
+  <div class="row"><div><label>Data de nascimento</label>${DATEIN('e_i',toBR(u.nascimento))}</div>
   <div><label>Posição</label><select id="e_pos">${posOpts(u.pos)}</select></div></div>
   <div class="row"><div><label>Nota (1-10)</label><select id="e_no">${opts(r.nota)}</select></div>
   <div><label>Velocidade/resistência (1-10)</label><select id="e_v">${opts(r.vel)}</select></div></div>
