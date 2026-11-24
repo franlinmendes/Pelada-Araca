@@ -60,7 +60,7 @@ const DATEIN=(id,v='')=>`<input id="${id}" inputmode="numeric" placeholder="dd/m
 const maskTime=el=>{const d=el.value.replace(/\D/g,'').slice(0,4);el.value=d.length>2?d.slice(0,2)+':'+d.slice(2):d};
 const fdate=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s||'');return m?`${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`:''};
 
-let FB={}, USER=undefined, ME=null, U={}, R={}, PL=[], RS={}, CT=[];
+let FB={}, USER=undefined, ME=null, U={}, R={}, PL=[], RS={}, CT=[], GRP='';
 let tab='peladas', curP=null, editU=null, showNew=false, mode='login', registering=false, usersLoaded=false;
 let unsubs=[], rsUnsub=null, subAdmin=false;
 const isAdm=()=>!!(ME&&ME.admin);
@@ -98,7 +98,7 @@ function startSubs(){
 function subscribeAdmin(){
   const {F,db}=FB;
   unsubs.push(F.onSnapshot(F.collection(db,'ratings'),s=>{R={};s.forEach(d=>R[d.id]=d.data());softRender()},e=>console.warn(e)));
-  unsubs.push(F.onSnapshot(F.doc(db,'config','contatos'),s=>{CT=(s.data()||{}).lista||[];softRender()},e=>console.warn(e)));
+  unsubs.push(F.onSnapshot(F.doc(db,'config','contatos'),s=>{const d=s.data()||{};CT=d.lista||[];GRP=d.grupo||'';softRender()},e=>console.warn(e)));
 }
 function errMsg(e){
   const m={'auth/invalid-credential':'E-mail ou senha incorretos.','auth/wrong-password':'E-mail ou senha incorretos.','auth/user-not-found':'E-mail ou senha incorretos.',
@@ -357,14 +357,23 @@ function pelText(){
   return `⚽ ${p.titulo}\n${fdate(p.data)} · ${p.max} vagas\n\nConfirme sua presença: ${url}`;
 }
 function notify(){
-  if(!CT.length)return alert('Cadastre números na aba Avisos.');
+  if(!CT.length&&!GRP)return alert('Cadastre o link do grupo ou números na aba Avisos.');
   const d=document.createElement('div');d.className='modal';
-  d.innerHTML=`<div class="card"><h3>Avisar contatos</h3><p class="m">Abre o WhatsApp (ou SMS) com a mensagem pronta; toque em enviar para cada contato.</p>
+  d.innerHTML=`<div class="card"><h3>Avisar contatos</h3>${GRP?`<p class="m">Grupo: o app copia a mensagem e abre o grupo; é só colar e enviar.</p>
+  <button class="p" style="margin:0 0 8px" onclick="sendGroup()">💬 Enviar para o grupo</button>
+  ${navigator.share?'<button class="s" style="width:100%;margin-bottom:12px" onclick="shareMsg()">Compartilhar (escolher o grupo no WhatsApp)</button>':''}`:''}
+  ${CT.length?'<p class="m">Contatos individuais: abre o WhatsApp (ou SMS) com a mensagem pronta.</p>':''}
   ${CT.map((c,i)=>`<div class="pl" style="margin:6px 0"><div class="i">${esc(c.nome||c.tel)}<br><small>${esc(c.tel)}</small></div>
   <button class="s" onclick="wa(${i})">WhatsApp</button><button class="s" onclick="sms(${i})">SMS</button></div>`).join('')}
   <button class="p" onclick="this.closest('.modal').remove();render()">Fechar</button></div>`;
   document.body.appendChild(d);
 }
+async function sendGroup(){
+  try{await navigator.clipboard.writeText(pelText())}catch(e){return alert('Não consegui copiar. Use "Compartilhar".')}
+  alert('Mensagem copiada! No grupo, cole e envie.');
+  location.href=GRP;
+}
+function shareMsg(){navigator.share({text:pelText()}).catch(()=>{})}
 function wa(i){location.href='https://wa.me/'+digits(CT[i].tel)+'?text='+encodeURIComponent(pelText())}
 function sms(i){location.href='sms:'+digits(CT[i].tel)+'?&body='+encodeURIComponent(pelText())}
 
@@ -421,12 +430,21 @@ async function delU(){
 
 /* ---------- Admin: contatos para aviso ---------- */
 function viewCfg(){
-  return `<div class="card"><h3>📲 Celulares para aviso</h3>
+  return `<div class="card"><h3>💬 Grupo do WhatsApp</h3>
+  <p class="m">Os times e os avisos podem ser enviados ao grupo. O link fica guardado só para administradores.</p>
+  <label>Link de convite do grupo</label><input id="g_l" placeholder="https://chat.whatsapp.com/..." value="${esc(GRP)}">
+  <button class="p" onclick="saveGrupo()">Salvar link do grupo</button></div>
+  <div class="card"><h3>📲 Celulares para aviso</h3>
   ${CT.map((c,i)=>`<div class="pl" style="margin:6px 0"><div class="i">${esc(c.nome||'(sem nome)')}<br><small>${esc(c.tel)}</small></div><button class="d" onclick="delC(${i})">✕</button></div>`).join('')||'<p class="m">Nenhum número.</p>'}
   <label>Nome</label><input id="c_nn"><label>Celular (DDD + número, ex: 81999998888)</label><input id="c_t" type="tel" inputmode="tel">
   <button class="p" onclick="addC()">Adicionar número</button></div>`;
 }
-async function saveCT(l){try{await FB.F.setDoc(FB.F.doc(FB.db,'config','contatos'),{lista:l})}catch(e){alert(errMsg(e))}}
+async function saveCT(l){try{await FB.F.setDoc(FB.F.doc(FB.db,'config','contatos'),{lista:l},{merge:true})}catch(e){alert(errMsg(e))}}
+async function saveGrupo(){
+  const g=$('#g_l').value.trim();
+  if(g&&!/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]+$/.test(g))return alert('Link inválido. Use o link de convite do grupo (https://chat.whatsapp.com/...).');
+  try{await FB.F.setDoc(FB.F.doc(FB.db,'config','contatos'),{grupo:g},{merge:true});alert(g?'Link do grupo salvo.':'Link do grupo removido.')}catch(e){alert(errMsg(e))}
+}
 function addC(){
   const tel=digits($('#c_t').value);if(tel.length<10)return alert('Número inválido. Use DDD + número.');
   saveCT([...CT,{nome:$('#c_nn').value.trim(),tel:tel.length<=11?'55'+tel:tel}]);
