@@ -10,239 +10,399 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
 <style>
-:root{--g:#0b6b3a;--g2:#0e8a4b;--bg:#f2f5f3;--c:#fff;--t:#17211b;--m:#6b7a70;--r:#d33}
+:root{--g:#0b6b3a;--g2:#0e8a4b;--bg:#f2f5f3;--c:#fff;--t:#17211b;--m:#6b7a70;--r:#d33;--b:#2a6fd6}
 @media(prefers-color-scheme:dark){:root{--bg:#101512;--c:#1a221d;--t:#e8efe9;--m:#93a398}}
 *{box-sizing:border-box}body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--t);padding-bottom:80px}
-header{background:var(--g);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;font-weight:700;font-size:20px;position:sticky;top:0;z-index:5}
+header{background:var(--g);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;font-weight:700;font-size:20px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center}
+header small{font-weight:400;font-size:13px;opacity:.9}
 main{padding:12px;max-width:640px;margin:auto}
 nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--c);border-top:1px solid #8884;padding-bottom:env(safe-area-inset-bottom);z-index:5}
-nav button{flex:1;border:0;background:none;padding:12px 4px;font-size:13px;color:var(--m)}nav button.on{color:var(--g2);font-weight:700}
+nav button{flex:1;border:0;background:none;padding:10px 2px;font-size:12px;color:var(--m)}nav button.on{color:var(--g2);font-weight:700}
 nav b{display:block;font-size:20px}
 .card{background:var(--c);border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:0 1px 3px #0002}
 button.p{background:var(--g2);color:#fff;border:0;border-radius:10px;padding:12px 16px;font-size:16px;font-weight:700;width:100%;margin-top:8px}
 button.s{background:none;border:1px solid var(--g2);color:var(--g2);border-radius:8px;padding:8px 12px;font-size:14px}
 button.d{background:none;border:1px solid var(--r);color:var(--r);border-radius:8px;padding:8px 12px;font-size:14px}
+button.on{background:var(--g2);color:#fff}
+button.offb{background:var(--r);color:#fff;border-color:var(--r)}
 input,select{width:100%;padding:10px;border:1px solid #8886;border-radius:8px;font-size:16px;background:var(--bg);color:var(--t);margin:4px 0 10px}
 label{font-size:13px;color:var(--m)}
 .row{display:flex;gap:8px;align-items:center}.row>*{flex:1}
-.pl{display:flex;align-items:center;gap:10px}.pl .i{flex:1}.pl small{color:var(--m)}
-.tag{display:inline-block;background:var(--g2);color:#fff;border-radius:6px;padding:1px 7px;font-size:12px;margin-right:4px}
-.cnt{position:fixed;bottom:calc(64px + env(safe-area-inset-bottom));left:12px;right:12px;max-width:616px;margin:auto;z-index:4}
-input[type=checkbox]{width:24px;height:24px;margin:0;flex:none}
+.pl{display:flex;align-items:center;gap:8px}.pl .i{flex:1;min-width:0}.pl small{color:var(--m)}
+.tag{display:inline-block;background:var(--g2);color:#fff;border-radius:6px;padding:1px 7px;font-size:12px;margin-right:4px;white-space:nowrap}
+.tag.b{background:var(--b)}.tag.gr{background:#888}.tag.o{background:#d98a00}.tag.r{background:var(--r)}
+input[type=checkbox]{width:22px;height:22px;margin:0;flex:none}
+.chk{display:flex;align-items:center;gap:8px;color:var(--t);font-size:16px;margin:6px 0}
 .modal{position:fixed;inset:0;background:#0009;display:flex;align-items:center;justify-content:center;z-index:9;padding:20px}
-.modal .card{width:100%;max-width:400px}
+.modal .card{width:100%;max-width:400px;max-height:90vh;overflow:auto}
 h3{margin:4px 0 8px}.m{color:var(--m);font-size:14px}
+.big{font-size:18px;font-weight:700;text-align:center;padding:10px}
+a{color:var(--g2)}
 </style></head><body>
-<header id="hd">⚽ Pelada Araca</header>
-<main id="app"></main>
-<nav>
-<button data-t="pelada"><b>⚽</b>Pelada</button>
-<button data-t="jog"><b>👥</b>Jogadores</button>
-<button data-t="cfg"><b>⚙️</b>Config</button>
-</nav>
+<header><span>⚽ Pelada Araca</span><small id="who"></small></header>
+<main id="app"><div class="card">Carregando...</div></main>
+<nav id="nav" style="display:none"></nav>
 <script src="firebase-config.js"></script>
 <script src="balance.js"></script>
 <script>
-const KEY='pelada-araca-v1', MAX=100;
+const MAXU=100;
 const POSN={goleiro:'Goleiro',zagueiro:'Zagueiro',meia:'Meia',atacante:'Atacante'};
-let S=load(), tab='pelada', sel=new Set(), result=null, edit=null;
-function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.players)return s}catch(e){}return{players:[],contacts:[]}}
-function save(){localStorage.setItem(KEY,JSON.stringify(S));push()}
-/* ---------- Nuvem (Firebase Firestore) ---------- */
-let CODE=localStorage.getItem('araca-code')||'', cloud=null, syncMsg='';
-const CFG=()=>window.FIREBASE_CONFIG&&window.FIREBASE_CONFIG.projectId;
-function setSync(m){syncMsg=m;const e=document.getElementById('sync');if(e)e.textContent=m}
-function push(){
-  if(!cloud) return;
-  cloud.F.setDoc(cloud.ref,{players:S.players,contacts:S.contacts,updated:Date.now()}).then(()=>setSync('✓ sincronizado')).catch(e=>setSync('Erro ao enviar: '+e.code));
-}
-async function initCloud(){
-  const q=new URLSearchParams(location.search).get('turma');
-  if(q&&/^[A-Za-z0-9]{12,40}$/.test(q)&&CFG()){CODE=q;localStorage.setItem('araca-code',q);history.replaceState(null,'',location.pathname)}
-  if(!CFG()||!CODE) return;
-  try{
-    setSync('Conectando...');
-    const A=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
-    const F=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-    const db=F.getFirestore(A.initializeApp(window.FIREBASE_CONFIG));
-    cloud={F,ref:F.doc(db,'turmas',CODE)};
-    F.onSnapshot(cloud.ref,snap=>{
-      if(snap.metadata.hasPendingWrites) return;
-      const d=snap.data();
-      if(!d){push();return}
-      S={players:d.players||[],contacts:d.contacts||[]};
-      localStorage.setItem(KEY,JSON.stringify(S));
-      const ids=new Set(S.players.map(p=>p.id));sel=new Set([...sel].filter(i=>ids.has(i)));
-      setSync('✓ sincronizado');
-      if(edit===null&&!result&&!document.querySelector('.modal'))render();
-    },e=>setSync('Erro de sincronização: '+e.code));
-  }catch(e){setSync('Sem conexão com a nuvem (usando dados locais)')}
-}
-function newCode(){const a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,x=>'abcdefghjkmnpqrstuvwxyz23456789'[x%31]).join('')}
-function joinCode(c){localStorage.setItem('araca-code',c);location.reload()}
-function createTurma(){joinCode(newCode())}
-function enterTurma(){const c=$('#tc').value.trim();if(!/^[A-Za-z0-9]{12,40}$/.test(c))return alert('Código inválido.');joinCode(c)}
-function leaveTurma(){if(!confirm('Sair da turma? Os dados continuam salvos neste aparelho.'))return;localStorage.removeItem('araca-code');location.reload()}
-function copyLink(){
-  const u=location.origin+location.pathname+'?turma='+CODE;
-  if(navigator.share)navigator.share({title:'Pelada Araca',text:'Entre na turma da pelada:',url:u}).catch(()=>{});
-  else navigator.clipboard.writeText(u).then(()=>alert('Link copiado!'));
-}
-function viewTurma(){
-  if(!CFG()) return `<div class="card"><h3>☁️ Turma compartilhada</h3><p class="m">Sincronização ainda não configurada.</p></div>`;
-  if(CODE) return `<div class="card"><h3>☁️ Turma compartilhada</h3>
-  <p class="m">Todos que entrarem com este link veem e editam os mesmos jogadores e contatos.</p>
-  <p class="m" id="sync">${esc(syncMsg)}</p>
-  <button class="p" onclick="copyLink()">Compartilhar link da turma</button>
-  <button class="d" style="width:100%;margin-top:8px" onclick="leaveTurma()">Sair da turma</button></div>`;
-  return `<div class="card"><h3>☁️ Turma compartilhada</h3>
-  <p class="m">Crie uma turma para todos usarem os mesmos dados. Os dados atuais deste aparelho são enviados para a nuvem.</p>
-  <button class="p" onclick="createTurma()">Criar turma</button>
-  <label style="display:block;margin-top:14px">Ou entre com um código</label><input id="tc" placeholder="código da turma">
-  <button class="s" style="width:100%" onclick="enterTurma()">Entrar</button></div>`;
-}
 const $=s=>document.querySelector(s);
-const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;result=null;edit=null;render()});
+const digits=t=>String(t).replace(/\D/g,'');
+const fdate=s=>{const d=new Date(s);return isNaN(d)?'':d.toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})};
 
+let FB={}, USER=undefined, ME=null, U={}, R={}, PL=[], RS={}, CT=[];
+let tab='peladas', curP=null, editU=null, showNew=false, mode='login', registering=false, usersLoaded=false;
+let unsubs=[], rsUnsub=null, subAdmin=false;
+const isAdm=()=>!!(ME&&ME.admin);
+
+/* ---------- Firebase ---------- */
+async function boot(){
+  try{
+    const B='https://www.gstatic.com/firebasejs/10.12.2/';
+    const [A0,AU,F]=await Promise.all([import(B+'firebase-app.js'),import(B+'firebase-auth.js'),import(B+'firebase-firestore.js')]);
+    const app=A0.initializeApp(window.FIREBASE_CONFIG);
+    FB={A0,AU,F,auth:AU.getAuth(app),db:F.getFirestore(app)};
+    AU.onAuthStateChanged(FB.auth,onUser);
+  }catch(e){$('#app').innerHTML='<div class="card">Sem conexão com o servidor. Verifique a internet e recarregue.</div>'}
+}
+function stopAll(){unsubs.forEach(u=>u());unsubs=[];if(rsUnsub)rsUnsub();rsUnsub=null;subAdmin=false}
+function onUser(u){
+  USER=u;stopAll();ME=null;U={};R={};PL=[];RS={};CT=[];curP=null;editU=null;usersLoaded=false;tab='peladas';
+  if(u) startSubs();
+  render();
+}
+function startSubs(){
+  const {F,db}=FB;
+  unsubs.push(F.onSnapshot(F.collection(db,'users'),s=>{
+    U={};s.forEach(d=>U[d.id]={id:d.id,...d.data()});
+    const had=!!ME;ME=U[USER.uid]||null;usersLoaded=true;
+    if(ME&&ME.admin&&!subAdmin){subAdmin=true;subscribeAdmin()}
+    had&&ME?softRender():render();
+  },e=>console.warn(e)));
+  unsubs.push(F.onSnapshot(F.collection(db,'peladas'),s=>{
+    PL=[];s.forEach(d=>PL.push({id:d.id,...d.data()}));
+    PL.sort((a,b)=>(b.data||'').localeCompare(a.data||''));softRender();
+  },e=>console.warn(e)));
+}
+function subscribeAdmin(){
+  const {F,db}=FB;
+  unsubs.push(F.onSnapshot(F.collection(db,'ratings'),s=>{R={};s.forEach(d=>R[d.id]=d.data());softRender()},e=>console.warn(e)));
+  unsubs.push(F.onSnapshot(F.doc(db,'config','contatos'),s=>{CT=(s.data()||{}).lista||[];softRender()},e=>console.warn(e)));
+}
+function errMsg(e){
+  const m={'auth/invalid-credential':'E-mail ou senha incorretos.','auth/wrong-password':'E-mail ou senha incorretos.','auth/user-not-found':'E-mail ou senha incorretos.',
+  'auth/email-already-in-use':'Este e-mail já está cadastrado.','auth/weak-password':'Senha muito curta (mínimo 6 caracteres).','auth/invalid-email':'E-mail inválido.',
+  'auth/too-many-requests':'Muitas tentativas. Aguarde um pouco.','auth/network-request-failed':'Sem conexão.','permission-denied':'Sem permissão para essa ação.'};
+  return m[e.code]||('Erro: '+(e.code||e.message));
+}
+
+/* ---------- Render ---------- */
+function softRender(){
+  const a=document.activeElement;
+  if(document.querySelector('.modal')||(a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)&&a.type!=='checkbox'))return;
+  render();
+}
 function render(){
-  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===tab));
-  const a=$('#app');
-  if(result) return a.innerHTML=viewResult();
-  a.innerHTML = tab==='pelada'?viewPelada():tab==='jog'?viewJog():viewCfg();
+  const a=$('#app'),nav=$('#nav');
+  $('#who').textContent=ME?ME.nome+(ME.admin?' (adm)':''):'';
+  if(!FB.auth) return;
+  if(USER===undefined){a.innerHTML='<div class="card">Carregando...</div>';nav.style.display='none';return}
+  if(!USER){nav.style.display='none';a.innerHTML=viewLogin();return}
+  if(!ME){
+    nav.style.display='none';
+    a.innerHTML=(registering||!usersLoaded)?'<div class="card">Carregando...</div>':viewComplete();return;
+  }
+  const tabs=[['peladas','⚽','Peladas']];
+  if(ME.admin)tabs.push(['jog','👥','Jogadores'],['cfg','📲','Avisos']);
+  tabs.push(['perfil','👤','Perfil']);
+  nav.style.display='flex';
+  nav.innerHTML=tabs.map(t=>`<button class="${tab===t[0]?'on':''}" onclick="setTab('${t[0]}')"><b>${t[1]}</b>${t[2]}</button>`).join('');
+  if(tab==='jog'&&!ME.admin)tab='peladas';
+  a.innerHTML=tab==='peladas'?(curP?viewPelada():viewPeladas()):tab==='jog'?viewJog():tab==='cfg'?viewCfg():viewPerfil();
+}
+function setTab(t){tab=t;closeP();editU=null;showNew=false;render();window.scrollTo(0,0)}
+
+/* ---------- Login / cadastro ---------- */
+function posOpts(v){return Object.entries(POSN).map(([k,n])=>`<option value="${k}" ${k===v?'selected':''}>${n}</option>`).join('')}
+function viewLogin(){
+  if(mode==='signup') return `<div class="card"><h3>Criar conta</h3>
+  <label>Nome</label><input id="s_n" autocomplete="name">
+  <label>E-mail (será seu login)</label><input id="s_e" type="email" autocomplete="email">
+  <label>Senha (mín. 6 caracteres)</label><input id="s_p" type="password" autocomplete="new-password">
+  <div class="row"><div><label>Idade</label><input id="s_i" type="number" inputmode="numeric" min="10" max="90"></div>
+  <div><label>Posição</label><select id="s_pos"><option value="">Escolha</option>${posOpts('')}</select></div></div>
+  <button class="p" onclick="doSignup()">Cadastrar</button>
+  <button class="s" style="width:100%;margin-top:8px" onclick="mode='login';render()">Já tenho conta</button></div>`;
+  return `<div class="card"><h3>Entrar</h3>
+  <label>E-mail</label><input id="l_e" type="email" autocomplete="email">
+  <label>Senha</label><input id="l_p" type="password" autocomplete="current-password">
+  <button class="p" onclick="doLogin()">Entrar</button>
+  <button class="s" style="width:100%;margin-top:8px" onclick="mode='signup';render()">Criar conta</button>
+  <p class="m" style="text-align:center"><a href="#" onclick="doReset();return false">Esqueci minha senha</a></p></div>`;
+}
+async function doLogin(){
+  try{await FB.AU.signInWithEmailAndPassword(FB.auth,$('#l_e').value.trim(),$('#l_p').value)}catch(e){alert(errMsg(e))}
+}
+async function doReset(){
+  const e=$('#l_e').value.trim();if(!e)return alert('Digite seu e-mail acima.');
+  try{await FB.AU.sendPasswordResetEmail(FB.auth,e);alert('Enviamos um e-mail para redefinir a senha (veja também o spam).')}catch(x){alert(errMsg(x))}
+}
+function readProfile(p){
+  const nome=$('#'+p+'_n')?$('#'+p+'_n').value.trim():'';
+  const idade=parseInt($('#'+p+'_i').value),pos=$('#'+p+'_pos').value;
+  return{nome,idade,pos};
+}
+function validProfile(o,needNome=true){
+  if(needNome&&!o.nome){alert('Informe o nome.');return false}
+  if(!(o.idade>=10&&o.idade<=90)){alert('Informe uma idade válida.');return false}
+  if(!POSN[o.pos]){alert('Escolha a posição.');return false}
+  return true;
+}
+async function doSignup(){
+  const o=readProfile('s'),email=$('#s_e').value.trim(),senha=$('#s_p').value;
+  if(!email)return alert('Informe o e-mail.');
+  if(senha.length<6)return alert('Senha muito curta (mínimo 6 caracteres).');
+  if(!validProfile(o))return;
+  registering=true;
+  try{
+    const c=await FB.AU.createUserWithEmailAndPassword(FB.auth,email,(senha));
+    await FB.F.setDoc(FB.F.doc(FB.db,'users',c.user.uid),{...o,email,mensalista:false,admin:false,createdAt:Date.now()});
+  }catch(e){alert(errMsg(e))}
+  registering=false;render();
+}
+function viewComplete(){
+  return `<div class="card"><h3>Complete seu cadastro</h3><p class="m">${esc(USER.email)}</p>
+  <label>Nome</label><input id="c_n"><div class="row"><div><label>Idade</label><input id="c_i" type="number" inputmode="numeric"></div>
+  <div><label>Posição</label><select id="c_pos"><option value="">Escolha</option>${posOpts('')}</select></div></div>
+  <button class="p" onclick="doComplete()">Salvar</button>
+  <button class="s" style="width:100%;margin-top:8px" onclick="FB.AU.signOut(FB.auth)">Sair</button></div>`;
+}
+async function doComplete(){
+  const o=readProfile('c');if(!validProfile(o))return;
+  try{await FB.F.setDoc(FB.F.doc(FB.db,'users',USER.uid),{...o,email:USER.email,mensalista:false,admin:false,createdAt:Date.now()})}catch(e){alert(errMsg(e))}
 }
 
-/* ---------- Pelada ---------- */
-function viewPelada(){
-  const P=S.players.slice().sort((a,b)=>a.nome.localeCompare(b.nome));
-  if(!P.length) return `<div class="card">Nenhum jogador cadastrado. Vá na aba <b>Jogadores</b>.</div>`;
-  return `<div class="row" style="margin-bottom:10px"><button class="s" onclick="selAll(true)">Marcar todos</button><button class="s" onclick="selAll(false)">Limpar</button></div>`+
-  P.map(p=>`<label class="card pl" style="color:var(--t);font-size:16px"><input type="checkbox" ${sel.has(p.id)?'checked':''} onchange="tog('${p.id}')">
-  <div class="i">${esc(p.nome)}<br><small>${POSN[p.pos]} · nota ${p.nota} · res. ${p.vel}</small></div></label>`).join('')+
-  `<div class="cnt"><button class="p" onclick="startAsk()"><span id="n">${sel.size}</span> selecionados — ▶ Iniciar pelada</button></div>`;
+/* ---------- Perfil ---------- */
+function viewPerfil(){
+  return `<div class="card"><h3>Meu perfil</h3><p class="m">${esc(ME.email)}${ME.mensalista?' · <span class="tag b">Mensalista</span>':''}${ME.admin?' <span class="tag o">Admin</span>':''}</p>
+  <label>Nome</label><input id="p_n" value="${esc(ME.nome)}">
+  <div class="row"><div><label>Idade</label><input id="p_i" type="number" inputmode="numeric" value="${esc(ME.idade)}"></div>
+  <div><label>Posição</label><select id="p_pos">${posOpts(ME.pos)}</select></div></div>
+  <button class="p" onclick="saveProfile()">Salvar</button></div>
+  <button class="d" style="width:100%" onclick="FB.AU.signOut(FB.auth)">Sair da conta</button>`;
 }
-function tog(id){sel.has(id)?sel.delete(id):sel.add(id);$('#n').textContent=sel.size}
-function selAll(v){sel=v?new Set(S.players.map(p=>p.id)):new Set();render()}
-function startAsk(){
-  if(sel.size<2) return alert('Selecione pelo menos 2 jogadores.');
-  const d=document.createElement('div');d.className='modal';d.innerHTML=`<div class="card"><h3>Dividir ${sel.size} jogadores</h3>
-  <label>Em quantos times?</label><input id="nt" type="number" min="2" max="${sel.size}" value="2" inputmode="numeric">
+async function saveProfile(){
+  const o=readProfile('p');if(!validProfile(o))return;
+  try{await FB.F.updateDoc(FB.F.doc(FB.db,'users',USER.uid),o);alert('Salvo!')}catch(e){alert(errMsg(e))}
+}
+
+/* ---------- Peladas ---------- */
+const STATUS={aberta:['Aberta',''],sorteada:['Times sorteados','b'],finalizada:['Finalizada','gr']};
+function viewPeladas(){
+  let h='';
+  if(isAdm()){
+    h+=showNew?`<div class="card"><h3>Nova pelada</h3>
+    <label>Título</label><input id="n_t" value="Pelada Araca">
+    <label>Data e hora</label><input id="n_d" type="datetime-local">
+    <label>Número máximo de jogadores</label><input id="n_m" type="number" inputmode="numeric" value="20" min="2">
+    <button class="p" onclick="createPelada()">Criar pelada</button>
+    <button class="s" style="width:100%;margin-top:8px" onclick="showNew=false;render()">Cancelar</button></div>`
+    :`<button class="p" style="margin:0 0 10px" onclick="showNew=true;render()">+ Nova pelada</button>`;
+  }
+  if(!PL.length) h+='<div class="card m">Nenhuma pelada ainda.</div>';
+  return h+PL.map(p=>`<div class="card" onclick="openP('${p.id}')" style="cursor:pointer"><div class="pl"><div class="i"><b>${esc(p.titulo)}</b><br><small>${fdate(p.data)} · ${p.max} vagas</small></div>
+  <span class="tag ${STATUS[p.status][1]}">${STATUS[p.status][0]}</span></div></div>`).join('');
+}
+async function createPelada(){
+  const titulo=$('#n_t').value.trim(),data=$('#n_d').value,max=parseInt($('#n_m').value);
+  if(!titulo||!data)return alert('Informe título e data.');
+  if(!(max>=2))return alert('Número máximo inválido.');
+  try{await FB.F.addDoc(FB.F.collection(FB.db,'peladas'),{titulo,data,max,status:'aberta',createdAt:Date.now()});showNew=false;render()}catch(e){alert(errMsg(e))}
+}
+function openP(id){
+  curP=id;RS={};if(rsUnsub)rsUnsub();
+  rsUnsub=FB.F.onSnapshot(FB.F.collection(FB.db,'peladas',id,'rsvps'),s=>{RS={};s.forEach(d=>RS[d.id]=d.data());softRender()},e=>console.warn(e));
+  render();window.scrollTo(0,0);
+}
+function closeP(){curP=null;if(rsUnsub)rsUnsub();rsUnsub=null;RS={}}
+const curPel=()=>PL.find(p=>p.id===curP);
+
+// Lista dentro / espera calculada a partir das respostas (mensalistas têm prioridade)
+function lists(p){
+  const us=Object.values(U),it=u=>RS[u.id]&&RS[u.id].intent,ts=u=>RS[u.id].ts||0;
+  const m=us.filter(u=>it(u)==='dentro'&&u.mensalista).sort((a,b)=>ts(a)-ts(b));
+  const n=us.filter(u=>it(u)==='dentro'&&!u.mensalista).sort((a,b)=>ts(a)-ts(b));
+  const pend=us.filter(u=>u.mensalista&&!RS[u.id]).length;      // mensalistas que ainda não responderam
+  const slots=Math.max(0,p.max-m.length-pend);                  // vagas liberadas para não mensalistas
+  const dentro=[...m.slice(0,p.max),...n.slice(0,slots)];
+  const espera=[...m.slice(p.max),...n.slice(slots)];
+  return{dentro,espera,fora:us.filter(u=>it(u)==='fora'),sem:us.filter(u=>!RS[u.id])};
+}
+const byNome=(a,b)=>a.nome.localeCompare(b.nome);
+function nameRow(u,extra=''){return `<div class="pl" style="padding:4px 0;border-top:1px solid #8883"><div class="i">${esc(u.nome)}${u.mensalista?' <span class="tag b">M</span>':''}</div><span class="tag gr">${POSN[u.pos]||''}</span>${extra}</div>`}
+
+function viewPelada(){
+  const p=curPel();if(!p){closeP();return viewPeladas()}
+  const L=lists(p),open=p.status==='aberta';
+  const inD=L.dentro.some(u=>u.id===ME.id),eIdx=L.espera.findIndex(u=>u.id===ME.id);
+  const mine=RS[ME.id]&&RS[ME.id].intent;
+  let st=mine==='fora'?'❌ Você está FORA':inD?'✅ Você está DENTRO':eIdx>=0?`⏳ Lista de espera (posição ${eIdx+1})`:'Você ainda não respondeu';
+  let h=`<button class="s" style="margin-bottom:10px" onclick="closeP();render()">← Peladas</button>
+  <div class="card"><h3>${esc(p.titulo)}</h3><div class="m">${fdate(p.data)} · <span class="tag ${STATUS[p.status][1]}">${STATUS[p.status][0]}</span></div>
+  <div class="m" style="margin-top:6px">Vagas: <b>${Math.min(L.dentro.length,p.max)}/${p.max}</b> · Espera: <b>${L.espera.length}</b></div>
+  ${ME.mensalista?'<div class="m">Você é mensalista (prioridade).</div>':''}`;
+  if(open) h+=`<div class="big">${st}</div><div class="row"><button class="p on" onclick="setRsvp('${ME.id}','dentro')">Estou dentro</button><button class="p offb" onclick="setRsvp('${ME.id}','fora')">Estou fora</button></div>`;
+  h+='</div>';
+  if(p.status!=='aberta'&&p.times) h+=viewTimes(p);
+  else{
+    h+=`<div class="card"><h3>✅ Dentro (${L.dentro.length})</h3>${L.dentro.sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Ninguém</span>'}</div>`;
+    if(L.espera.length)h+=`<div class="card"><h3>⏳ Lista de espera (${L.espera.length})</h3>${L.espera.map((u,i)=>nameRow(u,`<small>${i+1}º</small>`)).join('')}</div>`;
+    h+=`<div class="card"><h3>❌ Fora (${L.fora.length})</h3>${L.fora.sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Ninguém</span>'}</div>`;
+    h+=`<div class="card"><h3>Sem resposta (${L.sem.length})</h3>${L.sem.sort(byNome).map(u=>nameRow(u)).join('')||'<span class="m">Todos responderam</span>'}</div>`;
+  }
+  if(isAdm()) h+=viewAdminP(p,L);
+  return h;
+}
+function viewTimes(p){
+  return p.times.map((t,i)=>`<div class="card"><h3>${['🟢','🔵','🟡','🔴','🟣','🟠','⚪','⚫'][i%8]} Time ${i+1}</h3>
+  <div class="m">${t.jogadores.length} jogadores · média das notas <b>${t.nota.toFixed(2)}</b> · resistência <b>${t.vel.toFixed(2)}</b></div>
+  <div class="m" style="margin:4px 0 8px">${Balance.POS.map(x=>{const c=t.jogadores.filter(j=>j.pos===x).length;return c?`${c} ${POSN[x].toLowerCase()}`:''}).filter(Boolean).join(' · ')}</div>
+  ${t.jogadores.slice().sort((a,b)=>Balance.POS.indexOf(a.pos)-Balance.POS.indexOf(b.pos)).map(j=>`<div class="pl" style="padding:5px 0;border-top:1px solid #8883"><div class="i">${esc(j.nome)}</div><span class="tag gr">${POSN[j.pos]}</span></div>`).join('')}</div>`).join('');
+}
+async function setRsvp(uid,intent){
+  const cur=RS[uid]&&RS[uid].intent;if(cur===intent)return;
+  try{await FB.F.setDoc(FB.F.doc(FB.db,'peladas',curP,'rsvps',uid),{intent,ts:Date.now(),by:ME.id})}catch(e){alert(errMsg(e))}
+}
+
+/* ---------- Ações do admin na pelada ---------- */
+function viewAdminP(p,L){
+  const us=Object.values(U).sort(byNome);
+  let h=`<div class="card"><h3>🔧 Administrar</h3>`;
+  if(p.status==='aberta') h+=`<button class="p" onclick="askTeams()">🎲 Sortear times (${L.dentro.length} dentro)</button>`;
+  if(p.status==='sorteada') h+=`<button class="p" onclick="askTeams()">🔀 Sortear de novo</button>
+    <button class="p" onclick="setStatus('finalizada')">🏁 Finalizar pelada</button>
+    <button class="s" style="width:100%;margin-top:8px" onclick="setStatus('aberta',true)">Cancelar sorteio (reabrir)</button>`;
+  h+=`<button class="s" style="width:100%;margin-top:8px" onclick="notify()">📲 Avisar contatos</button>
+  <button class="d" style="width:100%;margin-top:8px" onclick="delPelada()">Excluir pelada</button></div>`;
+  if(p.status==='aberta') h+=`<div class="card"><h3>Presenças (editar)</h3>${us.map(u=>{const i=RS[u.id]&&RS[u.id].intent;
+    return `<div class="pl" style="padding:5px 0;border-top:1px solid #8883"><div class="i">${esc(u.nome)}${u.mensalista?' <span class="tag b">M</span>':''}</div>
+    <button class="s ${i==='dentro'?'on':''}" onclick="setRsvp('${u.id}','dentro')">Dentro</button><button class="s ${i==='fora'?'offb':''}" onclick="setRsvp('${u.id}','fora')">Fora</button></div>`}).join('')}</div>`;
+  return h;
+}
+function askTeams(){
+  const p=curPel(),n=lists(p).dentro.length;
+  if(n<2)return alert('É preciso pelo menos 2 jogadores dentro.');
+  const d=document.createElement('div');d.className='modal';
+  d.innerHTML=`<div class="card"><h3>Dividir ${n} jogadores</h3><label>Em quantos times?</label>
+  <input id="nt" type="number" min="2" max="${n}" value="2" inputmode="numeric">
   <div class="row"><button class="s" id="cx">Cancelar</button><button class="p" id="ok" style="margin:0">Sortear</button></div></div>`;
   document.body.appendChild(d);
-  $('#cx').onclick=()=>d.remove();
-  $('#ok').onclick=()=>{const n=parseInt($('#nt').value);
-    if(!(n>=2&&n<=sel.size)) return alert('Número de times inválido (2 a '+sel.size+').');
-    d.remove();run(n)};
+  $('#cx').onclick=()=>{d.remove();render()};
+  $('#ok').onclick=async()=>{const k=parseInt($('#nt').value);
+    if(!(k>=2&&k<=n))return alert('Número de times inválido (2 a '+n+').');
+    d.remove();await sortear(k)};
 }
-function run(n){
-  const pl=S.players.filter(p=>sel.has(p.id));
-  result=Balance.balance(pl,n);render();window.scrollTo(0,0);
+async function sortear(k){
+  const p=curPel(),pl=lists(p).dentro.map(u=>({id:u.id,nome:u.nome,pos:u.pos,idade:u.idade,nota:(R[u.id]||{}).nota||5,vel:(R[u.id]||{}).vel||5}));
+  const teams=Balance.balance(pl,k);
+  const times=teams.map(t=>({nota:avg(t.map(x=>x.nota)),vel:avg(t.map(x=>x.vel)),jogadores:t.map(x=>({id:x.id,nome:x.nome,pos:x.pos}))}));
+  try{await FB.F.updateDoc(FB.F.doc(FB.db,'peladas',curP),{status:'sorteada',times,sorteadoEm:Date.now()})}catch(e){alert(errMsg(e))}
+  render();window.scrollTo(0,0);
 }
-function viewResult(){
-  const cores=['🟢','🔵','🟡','🔴','🟣','🟠','⚪','⚫'];
-  return `<div class="row" style="margin-bottom:10px"><button class="s" onclick="result=null;render()">← Voltar</button><button class="s" onclick="run(result.length)">🔀 Sortear de novo</button></div>`+
-  result.map((t,i)=>`<div class="card"><h3>${cores[i%8]} Time ${i+1}</h3>
-  <div class="m">${t.length} jogadores · média das notas <b>${avg(t.map(p=>p.nota)).toFixed(2)}</b> · resistência <b>${avg(t.map(p=>p.vel)).toFixed(2)}</b></div>
-  <div class="m" style="margin:4px 0 8px">${Balance.POS.map(x=>{const c=t.filter(p=>p.pos===x).length;return c?`${c} ${POSN[x].toLowerCase()}`:''}).filter(Boolean).join(' · ')}</div>
-  ${t.slice().sort((a,b)=>Balance.POS.indexOf(a.pos)-Balance.POS.indexOf(b.pos)).map(p=>`<div class="pl" style="padding:5px 0;border-top:1px solid #8883"><div class="i">${esc(p.nome)}</div><span class="tag">${POSN[p.pos]}</span><small>${p.nota}</small></div>`).join('')}</div>`).join('')+
-  `<button class="p" onclick="notify()">📲 Avisar contatos (WhatsApp)</button>
-   <button class="s" style="width:100%;margin-top:8px" onclick="shareText()">Compartilhar texto dos times</button>`;
+async function setStatus(s,clear){
+  if(s==='finalizada'&&!confirm('Finalizar a pelada?'))return;
+  const upd={status:s};if(clear)upd.times=FB.F.deleteField();
+  try{await FB.F.updateDoc(FB.F.doc(FB.db,'peladas',curP),upd)}catch(e){alert(errMsg(e))}
 }
-function teamsText(){
-  return '⚽ Pelada Araca\n\n'+result.map((t,i)=>`*Time ${i+1}* (média ${avg(t.map(p=>p.nota)).toFixed(2)})\n`+t.map(p=>`- ${p.nome} (${POSN[p.pos]})`).join('\n')).join('\n\n');
+async function delPelada(){
+  if(!confirm('Excluir esta pelada?'))return;
+  try{await FB.F.deleteDoc(FB.F.doc(FB.db,'peladas',curP));closeP();render()}catch(e){alert(errMsg(e))}
 }
-function shareText(){const t=teamsText();if(navigator.share)navigator.share({text:t}).catch(()=>{});else navigator.clipboard.writeText(t).then(()=>alert('Texto copiado!'))}
+function pelText(){
+  const p=curPel(),url=location.origin+location.pathname;
+  if(p.times) return '⚽ '+p.titulo+'\n\n'+p.times.map((t,i)=>`*Time ${i+1}* (média ${t.nota.toFixed(2)})\n`+t.jogadores.map(j=>`- ${j.nome} (${POSN[j.pos]})`).join('\n')).join('\n\n');
+  return `⚽ ${p.titulo}\n${fdate(p.data)} · ${p.max} vagas\n\nConfirme sua presença: ${url}`;
+}
 function notify(){
-  if(!S.contacts.length) return alert('Cadastre números na aba Config.');
+  if(!CT.length)return alert('Cadastre números na aba Avisos.');
   const d=document.createElement('div');d.className='modal';
-  d.innerHTML=`<div class="card"><h3>Avisar contatos</h3><p class="m">O app abre o WhatsApp (ou SMS) com a mensagem pronta; toque em enviar para cada contato.</p>
-  ${S.contacts.map((c,i)=>`<div class="pl" style="margin:6px 0"><div class="i">${esc(c.nome||c.tel)}<br><small>${esc(c.tel)}</small></div>
+  d.innerHTML=`<div class="card"><h3>Avisar contatos</h3><p class="m">Abre o WhatsApp (ou SMS) com a mensagem pronta; toque em enviar para cada contato.</p>
+  ${CT.map((c,i)=>`<div class="pl" style="margin:6px 0"><div class="i">${esc(c.nome||c.tel)}<br><small>${esc(c.tel)}</small></div>
   <button class="s" onclick="wa(${i})">WhatsApp</button><button class="s" onclick="sms(${i})">SMS</button></div>`).join('')}
-  <button class="p" onclick="this.closest('.modal').remove()">Fechar</button></div>`;
+  <button class="p" onclick="this.closest('.modal').remove();render()">Fechar</button></div>`;
   document.body.appendChild(d);
 }
-const digits=t=>t.replace(/\D/g,'');
-function wa(i){location.href='https://wa.me/'+digits(S.contacts[i].tel)+'?text='+encodeURIComponent(teamsText())}
-function sms(i){location.href='sms:'+digits(S.contacts[i].tel)+'?&body='+encodeURIComponent(teamsText())}
+function wa(i){location.href='https://wa.me/'+digits(CT[i].tel)+'?text='+encodeURIComponent(pelText())}
+function sms(i){location.href='sms:'+digits(CT[i].tel)+'?&body='+encodeURIComponent(pelText())}
 
-/* ---------- Jogadores ---------- */
+/* ---------- Admin: jogadores ---------- */
 function viewJog(){
-  if(edit!==null) return formJog();
-  const P=S.players.slice().sort((a,b)=>a.nome.localeCompare(b.nome));
-  return `<button class="p" style="margin:0 0 10px" onclick="edit='new';render()">+ Novo jogador (${P.length}/${MAX})</button>`+
-  P.map(p=>`<div class="card pl"><div class="i"><b>${esc(p.nome)}</b> <span class="tag">${POSN[p.pos]}</span><br><small>${p.idade} anos · nota ${p.nota} · resistência ${p.vel}</small></div>
-  <button class="s" onclick="edit='${p.id}';render()">Editar</button></div>`).join('');
+  if(editU!==null) return formJog();
+  const us=Object.values(U).sort(byNome);
+  return `<button class="p" style="margin:0 0 10px" onclick="editU='new';render()">+ Cadastrar jogador (${us.length}/${MAXU})</button>`+
+  us.map(u=>{const r=R[u.id];return `<div class="card pl"><div class="i"><b>${esc(u.nome)}</b> <span class="tag gr">${POSN[u.pos]||'?'}</span>${u.mensalista?'<span class="tag b">Mensalista</span>':''}${u.admin?'<span class="tag o">Admin</span>':''}<br>
+  <small>${esc(u.email)} · ${u.idade} anos · ${r?`nota ${r.nota} · res. ${r.vel}`:'<span style="color:var(--r)">sem nota</span>'}</small></div>
+  <button class="s" onclick="editU='${u.id}';render()">Editar</button></div>`}).join('');
 }
-function opts(n,v){return Array.from({length:10},(_,i)=>`<option ${i+1==v?'selected':''}>${i+1}</option>`).join('')}
+function opts(v){return Array.from({length:10},(_,i)=>`<option ${i+1==v?'selected':''}>${i+1}</option>`).join('')}
 function formJog(){
-  const p=S.players.find(x=>x.id===edit)||{nome:'',nota:5,vel:5,pos:'meia',idade:25};
-  return `<div class="card"><h3>${edit==='new'?'Novo jogador':'Editar jogador'}</h3>
-  <label>Nome</label><input id="f_n" value="${esc(p.nome)}">
-  <label>Posição</label><select id="f_p">${Object.entries(POSN).map(([k,v])=>`<option value="${k}" ${k===p.pos?'selected':''}>${v}</option>`).join('')}</select>
-  <div class="row"><div><label>Nota (1-10)</label><select id="f_no">${opts(10,p.nota)}</select></div>
-  <div><label>Velocidade/resistência (1-10)</label><select id="f_v">${opts(10,p.vel)}</select></div></div>
-  <label>Idade</label><input id="f_i" type="number" min="10" max="90" inputmode="numeric" value="${p.idade}">
-  <button class="p" onclick="saveJog()">Salvar</button>
-  <div class="row" style="margin-top:8px"><button class="s" onclick="edit=null;render()">Cancelar</button>${edit!=='new'?`<button class="d" onclick="delJog()">Excluir</button>`:''}</div></div>`;
+  const isNew=editU==='new',u=isNew?{nome:'',email:'',idade:'',pos:'meia',mensalista:false,admin:false}:U[editU];
+  if(!u){editU=null;return viewJog()}
+  const r=R[u.id]||{nota:5,vel:5};
+  return `<div class="card"><h3>${isNew?'Cadastrar jogador':'Editar jogador'}</h3>
+  <label>Nome</label><input id="e_n" value="${esc(u.nome)}">
+  <label>E-mail</label><input id="e_e" type="email" value="${esc(u.email)}" ${isNew?'':'disabled'}>
+  ${isNew?'<label>Senha inicial (mín. 6 caracteres)</label><input id="e_pw" value="123456"><p class="m">Passe essa senha ao jogador. Se ele esquecer, use "Esqueci minha senha" na tela de login.</p>':''}
+  <div class="row"><div><label>Idade</label><input id="e_i" type="number" inputmode="numeric" value="${esc(u.idade)}"></div>
+  <div><label>Posição</label><select id="e_pos">${posOpts(u.pos)}</select></div></div>
+  <div class="row"><div><label>Nota (1-10)</label><select id="e_no">${opts(r.nota)}</select></div>
+  <div><label>Velocidade/resistência (1-10)</label><select id="e_v">${opts(r.vel)}</select></div></div>
+  <label class="chk"><input type="checkbox" id="e_m" ${u.mensalista?'checked':''}> Mensalista</label>
+  <label class="chk"><input type="checkbox" id="e_a" ${u.admin?'checked':''} ${u.id===ME.id?'disabled':''}> Administrador</label>
+  <button class="p" onclick="saveU()">Salvar</button>
+  <div class="row" style="margin-top:8px"><button class="s" onclick="editU=null;render()">Cancelar</button>${!isNew&&u.id!==ME.id?`<button class="d" onclick="delU()">Excluir</button>`:''}</div></div>`;
 }
-function saveJog(){
-  const nome=$('#f_n').value.trim(); if(!nome) return alert('Informe o nome.');
-  const idade=parseInt($('#f_i').value); if(!(idade>=10&&idade<=90)) return alert('Idade inválida.');
-  const o={nome,pos:$('#f_p').value,nota:+$('#f_no').value,vel:+$('#f_v').value,idade};
-  if(edit==='new'){ if(S.players.length>=MAX) return alert('Limite de '+MAX+' jogadores.'); S.players.push({id:uid(),...o}); }
-  else Object.assign(S.players.find(x=>x.id===edit),o);
-  save();edit=null;render();
+async function saveU(){
+  const o=readProfile('e'),isNew=editU==='new';
+  if(!validProfile(o))return;
+  const mensalista=$('#e_m').checked,admin=$('#e_a').checked,nota=+$('#e_no').value,vel=+$('#e_v').value,{F,db}=FB;
+  try{
+    let uid=editU,email;
+    if(isNew){
+      if(Object.keys(U).length>=MAXU)return alert('Limite de '+MAXU+' jogadores.');
+      email=$('#e_e').value.trim();if(!email)return alert('Informe o e-mail.');
+      const tmp=$('#e_pw').value;if(tmp.length<6)return alert('Senha inicial: mínimo 6 caracteres.');
+      const sec=FB.A0.initializeApp(window.FIREBASE_CONFIG,'sec'+Date.now()),a2=FB.AU.getAuth(sec);
+      uid=(await FB.AU.createUserWithEmailAndPassword(a2,email,(tmp))).user.uid;
+      await FB.AU.signOut(a2);await FB.A0.deleteApp(sec);
+      await F.setDoc(F.doc(db,'users',uid),{...o,email,mensalista,admin,createdAt:Date.now()});
+    }else await F.updateDoc(F.doc(db,'users',uid),{...o,mensalista,admin:uid===ME.id?true:admin});
+    await F.setDoc(F.doc(db,'ratings',uid),{nota,vel});
+    editU=null;render();
+  }catch(e){alert(errMsg(e))}
 }
-function delJog(){if(!confirm('Excluir jogador?'))return;S.players=S.players.filter(x=>x.id!==edit);sel.delete(edit);save();edit=null;render()}
+async function delU(){
+  if(!confirm('Excluir este jogador? (A conta de login dele continua existindo, mas ele perde o perfil.)'))return;
+  try{await FB.F.deleteDoc(FB.F.doc(FB.db,'users',editU));await FB.F.deleteDoc(FB.F.doc(FB.db,'ratings',editU));editU=null;render()}catch(e){alert(errMsg(e))}
+}
 
-/* ---------- Config ---------- */
+/* ---------- Admin: contatos para aviso ---------- */
 function viewCfg(){
-  return viewTurma()+`<div class="card"><h3>📲 Celulares para notificação</h3>
-  ${S.contacts.map((c,i)=>`<div class="pl" style="margin:6px 0"><div class="i">${esc(c.nome||'(sem nome)')}<br><small>${esc(c.tel)}</small></div><button class="d" onclick="delC(${i})">✕</button></div>`).join('')||'<p class="m">Nenhum número.</p>'}
-  <label>Nome</label><input id="c_n"><label>Celular (com DDD, ex: 81999998888)</label><input id="c_t" type="tel" inputmode="tel">
-  <button class="p" onclick="addC()">Adicionar número</button></div>
-  <div class="card"><h3>🔄 Compartilhar configurações</h3>
-  <p class="m">Exporte jogadores e contatos para um arquivo e envie para outro aparelho. No outro celular, importe o arquivo.</p>
-  <button class="p" onclick="exportCfg()">Exportar arquivo</button>
-  <label style="display:block;margin-top:14px">Importar arquivo (.json)</label>
-  <input type="file" accept=".json,application/json" onchange="importCfg(this.files[0])"></div>
-  <div class="card"><button class="d" onclick="if(confirm('Apagar TODOS os dados?'+(CODE?' A turma inteira será apagada para todos.':''))){S={players:[],contacts:[]};sel.clear();save();render()}">Apagar todos os dados</button></div>`;
+  return `<div class="card"><h3>📲 Celulares para aviso</h3>
+  ${CT.map((c,i)=>`<div class="pl" style="margin:6px 0"><div class="i">${esc(c.nome||'(sem nome)')}<br><small>${esc(c.tel)}</small></div><button class="d" onclick="delC(${i})">✕</button></div>`).join('')||'<p class="m">Nenhum número.</p>'}
+  <label>Nome</label><input id="c_nn"><label>Celular (DDD + número, ex: 81999998888)</label><input id="c_t" type="tel" inputmode="tel">
+  <button class="p" onclick="addC()">Adicionar número</button></div>`;
 }
+async function saveCT(l){try{await FB.F.setDoc(FB.F.doc(FB.db,'config','contatos'),{lista:l})}catch(e){alert(errMsg(e))}}
 function addC(){
-  const tel=digits($('#c_t').value); if(tel.length<10) return alert('Número inválido. Use DDD + número.');
-  S.contacts.push({nome:$('#c_n').value.trim(),tel:tel.length<=11?'55'+tel:tel});save();render();
+  const tel=digits($('#c_t').value);if(tel.length<10)return alert('Número inválido. Use DDD + número.');
+  saveCT([...CT,{nome:$('#c_nn').value.trim(),tel:tel.length<=11?'55'+tel:tel}]);
 }
-function delC(i){S.contacts.splice(i,1);save();render()}
-async function exportCfg(){
-  const blob=new Blob([JSON.stringify({app:'pelada-araca',v:1,...S},null,1)],{type:'application/json'});
-  const f=new File([blob],'pelada-araca-config.json',{type:'application/json'});
-  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:'Pelada Araca'});return}catch(e){if(e.name==='AbortError')return}}
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=f.name;a.click();
-}
-function importCfg(file){
-  if(!file) return;
-  const r=new FileReader();
-  r.onload=()=>{
-    try{
-      const d=JSON.parse(r.result);
-      if(d.app!=='pelada-araca'||!Array.isArray(d.players)) throw 0;
-      const clean=d.players.slice(0,MAX).map(p=>({id:String(p.id||uid()),nome:String(p.nome||'?').slice(0,60),
-        pos:POSN[p.pos]?p.pos:'meia',nota:Math.min(10,Math.max(1,+p.nota||5)),vel:Math.min(10,Math.max(1,+p.vel||5)),idade:Math.min(90,Math.max(10,+p.idade||25))}));
-      const cts=(Array.isArray(d.contacts)?d.contacts:[]).map(c=>({nome:String(c.nome||'').slice(0,40),tel:digits(String(c.tel||''))})).filter(c=>c.tel.length>=10);
-      const sub=confirm(`Arquivo com ${clean.length} jogadores e ${cts.length} contatos.\n\nOK = SUBSTITUIR dados atuais\nCancelar = MESCLAR com os atuais`);
-      if(sub){S={players:clean,contacts:cts}}
-      else{
-        const ids=new Set(S.players.map(p=>p.id));
-        clean.forEach(p=>{if(S.players.length<MAX&&!ids.has(p.id))S.players.push(p)});
-        cts.forEach(c=>{if(!S.contacts.some(x=>x.tel===c.tel))S.contacts.push(c)});
-      }
-      sel.clear();save();render();alert('Configurações importadas!');
-    }catch(e){alert('Arquivo inválido.')}
-  };
-  r.readAsText(file);
-}
-render();initCloud();
+function delC(i){saveCT(CT.filter((_,j)=>j!==i))}
+
+boot();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js');
 </script></body></html>
