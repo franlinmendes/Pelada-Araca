@@ -84,6 +84,16 @@ function pickPhoto(p,inp){
     const e=$('#ph_'+p);if(e)e.innerHTML=avatar({foto:PH[p],nome:''},64)};
   img.onerror=()=>alert('Não foi possível ler essa imagem.');img.src=url;
 }
+// Local da pelada: aceita link do Waze/Google Maps (inclusive texto compartilhado) ou um endereço digitado.
+const MAPHOSTS=/^(www\.)?(google\.[a-z]{2,3}(\.[a-z]{2})?\/maps|maps\.google\.[a-z]{2,3}(\.[a-z]{2})?|maps\.app\.goo\.gl|goo\.gl\/maps|waze\.com|ul\.waze\.com)(\/|\?|$)/i;
+function normLocal(t){
+  t=(t||'').trim();if(!t)return{ok:true,v:''};
+  const m=t.match(/https?:\/\/[^\s]+/i);
+  if(m)return MAPHOSTS.test(m[0].replace(/^https?:\/\//i,''))?{ok:true,v:m[0].slice(0,300)}:{ok:false};
+  return{ok:true,v:t.slice(0,200)};
+}
+const localUrl=v=>!v?'':/^https?:\/\//i.test(v)?v:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(v);
+const localHtml=v=>!v?'':`<div class="m" style="margin-top:6px">📍 ${/^https?:\/\//i.test(v)?'':esc(v)+' · '}<a href="${esc(localUrl(v))}" target="_blank" rel="noopener">Abrir no mapa</a></div>`;
 const fdate=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s||'');return m?`${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`:''};
 
 let PRB=[], sentOk=false;
@@ -299,7 +309,7 @@ function viewAjuda(){
   h+=D('Como os times são sorteados',`<p>O sorteio equilibra os times por <b>nota</b> (médias bem parecidas), <b>resistência</b>, <b>posição</b> (cada time recebe goleiros, zagueiros, meias e atacantes de forma parecida) e, com menos peso, a <b>idade</b>. Os times ficam com o mesmo número de jogadores (diferença de no máximo 1). A tela mostra os jogadores por time, a posição de cada um e a média de notas do time. As notas individuais não aparecem.</p>`);
   if(isAdm()){
     h+=`<h3 style="margin:14px 4px 10px">🔧 Para administradores</h3>`;
-    h+=D('Criar uma pelada',`<ol><li>Aba <b>Peladas</b> → <b>+ Nova pelada</b>.</li><li>Informe título, data (dd/mm/aaaa), hora (24h, hh:mm) e o número máximo de jogadores.</li><li>Toque em <b>Avisar contatos</b> dentro da pelada para mandar o convite ao grupo do WhatsApp.</li></ol>
+    h+=D('Criar uma pelada',`<ol><li>Aba <b>Peladas</b> → <b>+ Nova pelada</b>.</li><li>Informe título, data (dd/mm/aaaa), hora (24h, hh:mm), o número máximo de jogadores e, se quiser, o <b>local</b>: cole o link do Waze ou do Google Maps (ou o texto que o app compartilha) ou digite o endereço. Dá para alterar depois no bloco Administrar.</li><li>Toque em <b>Avisar contatos</b> dentro da pelada para mandar o convite ao grupo do WhatsApp.</li></ol>
     <p>O prazo de 24h dos mensalistas conta a partir da criação.</p>`);
     h+=D('Gerenciar jogadores',`<ul><li>Aba <b>Jogadores</b> → <b>Cadastrar jogador</b>: informe nome, e-mail, data de nascimento, posição, nota, velocidade/resistência e a senha inicial (mínimo 6 caracteres). Passe essa senha ao jogador.</li>
     <li><b>Editar</b> permite mudar nota (1-10), velocidade/resistência (1-10), marcar <b>mensalista</b> e marcar <b>Administrador</b>. Você não pode remover o seu próprio acesso de admin.</li>
@@ -343,13 +353,14 @@ function viewPeladas(){
     <label>Título</label><input id="n_t" value="Pelada Araca">
     <div class="row"><div><label>Data</label>${DATEIN('n_d')}</div>
     <div><label>Hora (24h)</label><input id="n_h" inputmode="numeric" placeholder="hh:mm" maxlength="5" autocomplete="off" oninput="maskTime(this)"></div></div>
+    <label>Local (opcional)</label><input id="n_l" placeholder="Cole o link do Waze/Google Maps ou digite o endereço" autocomplete="off">
     <label>Número máximo de jogadores</label><input id="n_m" type="number" inputmode="numeric" value="20" min="2">
     <button class="p" onclick="createPelada()">Criar pelada</button>
     <button class="s" style="width:100%;margin-top:8px" onclick="showNew=false;render()">Cancelar</button></div>`
     :`<button class="p" style="margin:0 0 10px" onclick="showNew=true;render()">+ Nova pelada</button>`;
   }
   if(!PL.length) h+='<div class="card m">Nenhuma pelada ainda.</div>';
-  return h+PL.map(p=>`<div class="card" onclick="openP('${p.id}')" style="cursor:pointer"><div class="pl"><div class="i"><b>${esc(p.titulo)}</b><br><small>${fdate(p.data)} · ${p.max} vagas</small></div>
+  return h+PL.map(p=>`<div class="card" onclick="openP('${p.id}')" style="cursor:pointer"><div class="pl"><div class="i"><b>${esc(p.titulo)}</b><br><small>${fdate(p.data)} · ${p.max} vagas${p.local?' · 📍':''}</small></div>
   <span class="tag ${STATUS[p.status][1]}">${STATUS[p.status][0]}</span></div></div>`).join('');
 }
 async function createPelada(){
@@ -357,9 +368,11 @@ async function createPelada(){
   if(!titulo)return alert('Informe o título.');
   if(!dia)return alert('Informe a data (dd/mm/aaaa).');
   if(!hm)return alert('Informe a hora no formato 24h (hh:mm), ex: 19:30.');
+  const loc=normLocal($('#n_l').value);
+  if(!loc.ok)return alert('Link inválido. Use um link do Waze ou do Google Maps, ou digite o endereço.');
   const data=dia+'T'+hm;
   if(!(max>=2))return alert('Número máximo inválido.');
-  try{await FB.F.addDoc(FB.F.collection(FB.db,'peladas'),{titulo,data,max,status:'aberta',createdAt:Date.now()});showNew=false;render()}catch(e){alert(errMsg(e))}
+  try{await FB.F.addDoc(FB.F.collection(FB.db,'peladas'),{titulo,data,local:loc.v,max,status:'aberta',createdAt:Date.now()});showNew=false;render()}catch(e){alert(errMsg(e))}
 }
 function openP(id){
   curP=id;RS={};VT={};DC={};VD={};if(rsUnsub)rsUnsub();
@@ -399,7 +412,7 @@ function viewPelada(){
   const mine=RS[ME.id]&&RS[ME.id].intent;
   let st=mine==='fora'?'<span class="xb">✕</span> Você está FORA':inD?'✅ Você está DENTRO':eIdx>=0?`⏳ Lista de espera (posição ${eIdx+1})`:'Você ainda não respondeu';
   let h=`<button class="s" style="margin-bottom:10px" onclick="closeP();render()">← Peladas</button>
-  <div class="card"><h3>${esc(p.titulo)}</h3><div class="m">${fdate(p.data)} · <span class="tag ${STATUS[p.status][1]}">${STATUS[p.status][0]}</span></div>
+  <div class="card"><h3>${esc(p.titulo)}</h3><div class="m">${fdate(p.data)} · <span class="tag ${STATUS[p.status][1]}">${STATUS[p.status][0]}</span></div>${localHtml(p.local)}
   <div class="m" style="margin-top:6px">Vagas: <b>${Math.min(L.dentro.length,p.max)}/${p.max}</b> · Espera: <b>${L.espera.length}</b></div>
   ${open?(L.win?`<div class="m">⏱ Mensalistas têm prioridade até <b>${fms(L.dl)}</b>. Depois disso, as vagas livres são de quem confirmar primeiro.</div>`:'<div class="m">Prazo dos mensalistas encerrado: vagas livres por ordem de confirmação.</div>'):''}
   ${ME.mensalista?'<div class="m">Você é mensalista.</div>':''}`;
@@ -491,7 +504,9 @@ async function setRsvp(uid,intent){
 /* ---------- Ações do admin na pelada ---------- */
 function viewAdminP(p,L){
   const us=Object.values(U).sort(byNome);
-  let h=`<div class="card"><h3>🔧 Administrar</h3>`;
+  let h=`<div class="card"><h3>🔧 Administrar</h3>
+  <label>Local da pelada</label><input id="l_loc" value="${esc(p.local||'')}" placeholder="Link do Waze/Google Maps ou endereço" autocomplete="off">
+  <button class="s" style="width:100%;margin-bottom:10px" onclick="saveLocal()">Salvar local</button>`;
   if(p.status==='aberta') h+=`<button class="p" onclick="askTeams()">🎲 Sortear times (${L.dentro.length} dentro)</button>`;
   if(p.status==='sorteada') h+=`<button class="p" onclick="askTeams()">🔀 Sortear de novo</button>
     <button class="p" onclick="setStatus('finalizada')">🏁 Finalizar pelada</button>
@@ -529,6 +544,11 @@ async function setStatus(s,clear){
   if(s==='finalizada'){const now=Date.now();upd.finalizadaEm=now;upd.votacaoAte=now+PRAZO;upd.participantes=[...new Set((p.times||[]).flatMap(t=>t.jogadores.map(j=>j.id)))]}
   try{await FB.F.updateDoc(FB.F.doc(FB.db,'peladas',curP),upd)}catch(e){alert(errMsg(e))}
 }
+async function saveLocal(){
+  const loc=normLocal($('#l_loc').value);
+  if(!loc.ok)return alert('Link inválido. Use um link do Waze ou do Google Maps, ou digite o endereço.');
+  try{await FB.F.updateDoc(FB.F.doc(FB.db,'peladas',curP),{local:loc.v});alert('Local salvo.')}catch(e){alert(errMsg(e))}
+}
 async function delPelada(){
   if(!confirm('Excluir esta pelada?'))return;
   try{await FB.F.deleteDoc(FB.F.doc(FB.db,'peladas',curP));closeP();render()}catch(e){alert(errMsg(e))}
@@ -537,7 +557,7 @@ function pelText(){
   const p=curPel(),url=location.origin+location.pathname;
   if(p.status==='finalizada'&&p.votacaoAte&&Date.now()<p.votacaoAte) return `🗳 Votação de notas aberta: ${p.titulo}\nQuem jogou pode avaliar os outros jogadores até ${fms(p.votacaoAte)}.\n\n${url}`;
   if(p.times) return '⚽ '+p.titulo+'\n\n'+p.times.map((t,i)=>`*Time ${i+1}* (média ${t.nota.toFixed(2)})\n`+t.jogadores.map(j=>`- ${j.nome} (${POSN[j.pos]})`).join('\n')).join('\n\n');
-  return `⚽ ${p.titulo}\n${fdate(p.data)} · ${p.max} vagas\n\nConfirme sua presença: ${url}`;
+  return `⚽ ${p.titulo}\n${fdate(p.data)} · ${p.max} vagas${p.local?'\n📍 '+(/^https?:\/\//i.test(p.local)?p.local:p.local+' '+localUrl(p.local)):''}\n\nConfirme sua presença: ${url}`;
 }
 function notify(){
   if(!CT.length&&!GRP)return alert('Cadastre o link do grupo ou números na aba Avisos.');
