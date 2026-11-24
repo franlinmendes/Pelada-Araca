@@ -66,6 +66,7 @@ async function boot(){
     const app=A0.initializeApp(window.FIREBASE_CONFIG);
     FB={A0,AU,F,auth:AU.getAuth(app),db:F.getFirestore(app)};
     AU.onAuthStateChanged(FB.auth,onUser);
+    if(AU.isSignInWithEmailLink(FB.auth,location.href)) finishLink();
   }catch(e){$('#app').innerHTML='<div class="card">Sem conexão com o servidor. Verifique a internet e recarregue.</div>'}
 }
 function stopAll(){unsubs.forEach(u=>u());unsubs=[];if(rsUnsub)rsUnsub();rsUnsub=null;subAdmin=false}
@@ -95,7 +96,7 @@ function subscribeAdmin(){
 function errMsg(e){
   const m={'auth/invalid-credential':'E-mail ou senha incorretos.','auth/wrong-password':'E-mail ou senha incorretos.','auth/user-not-found':'E-mail ou senha incorretos.',
   'auth/email-already-in-use':'Este e-mail já está cadastrado.','auth/weak-password':'Senha muito curta (mínimo 6 caracteres).','auth/invalid-email':'E-mail inválido.',
-  'auth/too-many-requests':'Muitas tentativas. Aguarde um pouco.','auth/network-request-failed':'Sem conexão.','permission-denied':'Sem permissão para essa ação.'};
+  'auth/invalid-action-code':'Link inválido ou já usado. Peça outro.','auth/expired-action-code':'Link expirado. Peça outro.','auth/unauthorized-continue-uri':'Domínio não autorizado no Firebase.','auth/operation-not-allowed':'Login por link não está ativado no Firebase.','auth/too-many-requests':'Muitas tentativas. Aguarde um pouco.','auth/network-request-failed':'Sem conexão.','permission-denied':'Sem permissão para essa ação.'};
   return m[e.code]||('Erro: '+(e.code||e.message));
 }
 
@@ -140,11 +141,28 @@ function viewLogin(){
   <label>E-mail</label><input id="l_e" type="email" autocomplete="email">
   <label>Senha</label><input id="l_p" type="password" autocomplete="current-password">
   <button class="p" onclick="doLogin()">Entrar</button>
+  <button class="s" style="width:100%;margin-top:8px" onclick="sendLink()">Entrar por link no e-mail (sem senha)</button>
   <button class="s" style="width:100%;margin-top:8px" onclick="mode='signup';render()">Criar conta</button>
   <p class="m" style="text-align:center"><a href="#" onclick="doReset();return false">Esqueci minha senha</a></p></div>`;
 }
 async function doLogin(){
   try{await FB.AU.signInWithEmailAndPassword(FB.auth,$('#l_e').value.trim(),$('#l_p').value)}catch(e){alert(errMsg(e))}
+}
+async function sendLink(){
+  const e=$('#l_e').value.trim();if(!e)return alert('Digite seu e-mail acima.');
+  try{
+    await FB.AU.sendSignInLinkToEmail(FB.auth,e,{url:location.origin+location.pathname,handleCodeInApp:true});
+    localStorage.setItem('araca-email',e);
+    alert('Enviamos um link para o seu e-mail (veja também o spam). Toque nele para entrar.\nNo iPhone, o link abre no Safari.');
+  }catch(x){alert(errMsg(x))}
+}
+async function finishLink(){
+  let e=localStorage.getItem('araca-email');
+  if(!e)e=prompt('Confirme o e-mail para concluir o login:');
+  if(!e)return;
+  try{await FB.AU.signInWithEmailLink(FB.auth,e.trim(),location.href);localStorage.removeItem('araca-email')}
+  catch(x){alert(errMsg(x))}
+  history.replaceState(null,'',location.pathname);
 }
 async function doReset(){
   const e=$('#l_e').value.trim();if(!e)return alert('Digite seu e-mail acima.');
