@@ -18,7 +18,7 @@ service cloud.firestore {
          request.resource.data.mensalista == false));
       allow update: if isAdmin() || (
         request.auth.uid == uid &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome', 'idade', 'pos']));
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome', 'idade', 'nascimento', 'pos']));
       allow delete: if isAdmin();
     }
 
