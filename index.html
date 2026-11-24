@@ -2,18 +2,18 @@
 <html lang="pt-BR"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Pelada Araca</title>
+<title>Pelada Flor do Araçá</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0b6b3a">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Pelada Araca">
+<meta name="apple-mobile-web-app-title" content="Flor do Araçá">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
 <style>
 :root{--g:#0b6b3a;--g2:#0e8a4b;--bg:#f2f5f3;--c:#fff;--t:#17211b;--m:#6b7a70;--r:#d33;--b:#2a6fd6}
 @media(prefers-color-scheme:dark){:root{--bg:#101512;--c:#1a221d;--t:#e8efe9;--m:#93a398}}
 *{box-sizing:border-box}body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--t);padding-bottom:24px}
-header{background:var(--g);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;font-weight:700;font-size:20px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center}
+header{background:var(--g);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;font-weight:700;font-size:18px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center}
 header>span{white-space:nowrap}header small{font-weight:400;font-size:13px;line-height:1.25;text-align:right;margin-left:12px}
 #who span{display:block;font-size:11px;opacity:.85}textarea{min-height:130px;resize:vertical;font-family:inherit}
 main{padding:12px;max-width:640px;margin:auto}
@@ -50,7 +50,7 @@ details.card summary{font-weight:700;cursor:pointer;padding:2px 0}details.card[o
 .big{font-size:18px;font-weight:700;text-align:center;padding:10px}
 a{color:var(--g2)}
 </style></head><body>
-<header><span><button id="mb" onclick="toggleMenu()" aria-label="Menu" style="display:none">☰</button>⚽ Pelada Araca</span><small id="who"></small></header>
+<header><span><button id="mb" onclick="toggleMenu()" aria-label="Menu" style="display:none">☰</button>⚽ Pelada Flor do Araçá</span><small id="who"></small></header>
 <main id="app"><div class="card">Carregando...</div></main>
 <div class="ov" id="ov" onclick="toggleMenu(false)"></div>
 <nav id="nav" style="display:none"></nav>
@@ -327,7 +327,7 @@ function viewAjuda(){
     <li>Também dá para cadastrar celulares (com DDD) para avisos individuais por WhatsApp ou SMS.</li>
     <li>A mensagem muda conforme a fase: convite, times sorteados ou votação aberta.</li></ul>`);
   }
-  return h+'<p class="m" style="text-align:center">Pelada Araca</p>';
+  return h+'<p class="m" style="text-align:center">Pelada Flor do Araçá</p>';
 }
 
 /* ---------- Perfil ---------- */
@@ -350,7 +350,7 @@ function viewPeladas(){
   let h='';
   if(isAdm()){
     h+=showNew?`<div class="card"><h3>Nova pelada</h3>
-    <label>Título</label><input id="n_t" value="Pelada Araca">
+    <label>Título</label><input id="n_t" value="Pelada Flor do Araçá">
     <div class="row"><div><label>Data</label>${DATEIN('n_d')}</div>
     <div><label>Hora (24h)</label><input id="n_h" inputmode="numeric" placeholder="hh:mm" maxlength="5" autocomplete="off" oninput="maskTime(this)"></div></div>
     <label>Local (opcional)</label><input id="n_l" placeholder="Cole o link do Waze/Google Maps ou digite o endereço" autocomplete="off">
