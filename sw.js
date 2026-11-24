@@ -1,5 +1,5 @@
-const C='araca-v2';
-self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(['./','./index.html','./balance.js','./firebase-config.js','./manifest.json','./icon.svg'])))});
+const C='araca-v3';
+self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(['./','./index.html','./balance.js','./firebase-config.js','./manifest.json','./icon-192.png','./icon-512.png','./apple-touch-icon.png'])))});
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x))))));
 self.addEventListener('fetch',e=>{
   if(e.request.method!=='GET'||new URL(e.request.url).origin!==location.origin)return;
