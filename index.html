@@ -14,7 +14,8 @@
 @media(prefers-color-scheme:dark){:root{--bg:#101512;--c:#1a221d;--t:#e8efe9;--m:#93a398}}
 *{box-sizing:border-box}body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--t);padding-bottom:24px}
 header{background:var(--g);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;font-weight:700;font-size:20px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center}
-header small{font-weight:400;font-size:13px;opacity:.9}
+header>span{white-space:nowrap}header small{font-weight:400;font-size:13px;line-height:1.25;text-align:right;margin-left:12px}
+#who span{display:block;font-size:11px;opacity:.85}textarea{min-height:130px;resize:vertical;font-family:inherit}
 main{padding:12px;max-width:640px;margin:auto}
 nav{position:fixed;top:0;bottom:0;left:0;width:280px;max-width:84vw;background:var(--c);z-index:20;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);transform:translateX(-102%);transition:transform .22s ease;box-shadow:2px 0 12px #0004;overflow:auto}
 nav.open{transform:none}
@@ -30,7 +31,7 @@ button.s{background:none;border:1px solid var(--g2);color:var(--g2);border-radiu
 button.d{background:none;border:1px solid var(--r);color:var(--r);border-radius:8px;padding:8px 12px;font-size:14px}
 button.on{background:var(--g2);color:#fff}
 button.offb{background:var(--r);color:#fff;border-color:var(--r)}
-input,select{width:100%;padding:10px;border:1px solid #8886;border-radius:8px;font-size:16px;background:var(--bg);color:var(--t);margin:4px 0 10px}
+input,select,textarea{width:100%;padding:10px;border:1px solid #8886;border-radius:8px;font-size:16px;background:var(--bg);color:var(--t);margin:4px 0 10px}
 label{font-size:13px;color:var(--m)}
 .row{display:flex;gap:8px;align-items:center}.row>*{flex:1}
 .pl{display:flex;align-items:center;gap:8px}.pl .i{flex:1;min-width:0}.pl small{color:var(--m)}
@@ -85,6 +86,7 @@ function pickPhoto(p,inp){
 }
 const fdate=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s||'');return m?`${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`:''};
 
+let PRB=[], sentOk=false;
 let FB={}, USER=undefined, ME=null, U={}, R={}, PL=[], RS={}, VT={}, DC={}, VD={}, CT=[], GRP='';
 let tab='peladas', curP=null, editU=null, showNew=false, mode='login', registering=false, usersLoaded=false;
 let unsubs=[], rsUnsub=null, subAdmin=false;
@@ -103,7 +105,7 @@ async function boot(){
 }
 function stopAll(){unsubs.forEach(u=>u());unsubs=[];if(rsUnsub)rsUnsub();rsUnsub=null;subAdmin=false}
 function onUser(u){
-  USER=u;PH={};stopAll();ME=null;U={};R={};PL=[];RS={};CT=[];curP=null;editU=null;usersLoaded=false;tab='peladas';
+  USER=u;PH={};stopAll();ME=null;U={};R={};PL=[];RS={};CT=[];PRB=[];curP=null;editU=null;usersLoaded=false;tab='peladas';
   if(u) startSubs();
   render();
 }
@@ -123,6 +125,7 @@ function startSubs(){
 function subscribeAdmin(){
   const {F,db}=FB;
   unsubs.push(F.onSnapshot(F.collection(db,'ratings'),s=>{R={};s.forEach(d=>R[d.id]=d.data());softRender()},e=>console.warn(e)));
+  unsubs.push(F.onSnapshot(F.collection(db,'problemas'),s=>{PRB=[];s.forEach(d=>PRB.push({id:d.id,...d.data()}));PRB.sort((a,b)=>(b.ts||0)-(a.ts||0));softRender()},e=>console.warn(e)));
   unsubs.push(F.onSnapshot(F.doc(db,'config','contatos'),s=>{const d=s.data()||{};CT=d.lista||[];GRP=d.grupo||'';softRender()},e=>console.warn(e)));
 }
 function errMsg(e){
@@ -140,7 +143,7 @@ function softRender(){
 }
 function render(){
   const a=$('#app'),nav=$('#nav');
-  $('#who').textContent=ME?ME.nome+(ME.admin?' (adm)':''):'';
+  $('#who').innerHTML=ME?esc(ME.nome)+(ME.admin?'<span>Administrador</span>':''):'';
   if(!FB.auth) return;
   if(USER===undefined){a.innerHTML='<div class="card">Carregando...</div>';nav.style.display='none';return}
   if(!USER){nav.style.display='none';$('#mb').style.display='none';a.innerHTML=viewLogin();return}
@@ -149,17 +152,17 @@ function render(){
     a.innerHTML=(registering||!usersLoaded)?'<div class="card">Carregando...</div>':viewComplete();return;
   }
   const tabs=[['peladas','⚽','Peladas']];
-  if(ME.admin)tabs.push(['jog','👥','Jogadores'],['cfg','📲','Avisos']);
-  tabs.push(['perfil','👤','Perfil'],['ajuda','❓','Ajuda']);
+  if(ME.admin)tabs.push(['jog','👥','Jogadores'],['cfg','📲','Avisos'],['prob','📥','Problemas'+(PRB.filter(x=>x.status!=='resolvido').length?' ('+PRB.filter(x=>x.status!=='resolvido').length+')':'')]);
+  tabs.push(['perfil','👤','Perfil'],['ajuda','❓','Ajuda'],['rep','🐞','Reportar problema']);
   nav.style.display='flex';$('#mb').style.display='';
   nav.innerHTML=`<div class="dh">${avatar(ME,44)}<div><b style="width:auto;text-align:left">${esc(ME.nome)}</b><small>${ME.admin?'Administrador':ME.mensalista?'Mensalista':'Jogador'}</small></div></div>`+
     tabs.map(t=>`<button class="${tab===t[0]?'on':''}" onclick="setTab('${t[0]}')"><b>${t[1]}</b>${t[2]}</button>`).join('')+
     `<button class="out" onclick="toggleMenu(false);FB.AU.signOut(FB.auth)"><b>🚪</b>Sair</button>`;
-  if(tab==='jog'&&!ME.admin)tab='peladas';
-  a.innerHTML=tab==='peladas'?(curP?viewPelada():viewPeladas()):tab==='jog'?viewJog():tab==='cfg'?viewCfg():tab==='ajuda'?viewAjuda():viewPerfil();
+  if((tab==='jog'||tab==='cfg'||tab==='prob')&&!ME.admin)tab='peladas';
+  a.innerHTML=tab==='peladas'?(curP?viewPelada():viewPeladas()):tab==='jog'?viewJog():tab==='cfg'?viewCfg():tab==='ajuda'?viewAjuda():tab==='rep'?viewReport():tab==='prob'?viewProblemas():viewPerfil();
 }
 function toggleMenu(v){const o=v===undefined?!$('#nav').classList.contains('open'):v;$('#nav').classList.toggle('open',o);$('#ov').classList.toggle('open',o)}
-function setTab(t){toggleMenu(false);tab=t;closeP();editU=null;showNew=false;render();window.scrollTo(0,0)}
+function setTab(t){toggleMenu(false);tab=t;sentOk=false;closeP();editU=null;showNew=false;render();window.scrollTo(0,0)}
 
 /* ---------- Login / cadastro ---------- */
 function posOpts(v){return Object.entries(POSN).map(([k,n])=>`<option value="${k}" ${k===v?'selected':''}>${n}</option>`).join('')}
@@ -239,6 +242,33 @@ async function doComplete(){
   const o=readProfile('c');if(!validProfile(o))return;
   try{await FB.F.setDoc(FB.F.doc(FB.db,'users',USER.uid),{...o,email:USER.email,mensalista:false,admin:false,createdAt:Date.now()})}catch(e){alert(errMsg(e))}
 }
+
+/* ---------- Reportar problema ---------- */
+function viewReport(){
+  if(sentOk) return `<div class="card"><h3>✅ Obrigado!</h3><p class="m">Seu relato foi enviado aos administradores.</p>
+  <button class="p" onclick="sentOk=false;render()">Enviar outro relato</button></div>`;
+  return `<div class="card"><h3>🐞 Reportar um problema</h3>
+  <p class="m">Descreva o que aconteceu: em que tela você estava, o que tentou fazer e o que apareceu. Os administradores vão receber o seu relato.</p>
+  <label>Descrição do problema</label><textarea id="r_t" maxlength="1000" placeholder="Ex.: ao tocar em &quot;Estou dentro&quot; apareceu uma mensagem de erro..."></textarea>
+  <button class="p" onclick="sendReport()">Enviar relato</button></div>`;
+}
+async function sendReport(){
+  const t=$('#r_t').value.trim();
+  if(t.length<10)return alert('Descreva o problema com um pouco mais de detalhes (mínimo 10 caracteres).');
+  try{
+    await FB.F.addDoc(FB.F.collection(FB.db,'problemas'),{uid:ME.id,nome:ME.nome,email:ME.email||'',texto:t,ts:Date.now(),status:'aberto',aparelho:navigator.userAgent.slice(0,200)});
+    sentOk=true;render();
+  }catch(e){alert(errMsg(e))}
+}
+function viewProblemas(){
+  if(!PRB.length) return '<div class="card m">Nenhum problema reportado.</div>';
+  return PRB.map(x=>`<div class="card"><div class="pl"><div class="i"><b>${esc(x.nome)}</b> <small>${esc(x.email)}</small><br><small>${fms(x.ts)}</small></div>
+  <span class="tag ${x.status==='resolvido'?'':'r'}">${x.status==='resolvido'?'Resolvido':'Aberto'}</span></div>
+  <p style="white-space:pre-wrap;margin:8px 0">${esc(x.texto)}</p><p class="m" style="word-break:break-all">${esc(x.aparelho||'')}</p>
+  <div class="row"><button class="s" onclick="setProb('${x.id}','${x.status==='resolvido'?'aberto':'resolvido'}')">${x.status==='resolvido'?'Reabrir':'Marcar como resolvido'}</button><button class="d" onclick="delProb('${x.id}')">Excluir</button></div></div>`).join('');
+}
+async function setProb(id,status){try{await FB.F.updateDoc(FB.F.doc(FB.db,'problemas',id),{status})}catch(e){alert(errMsg(e))}}
+async function delProb(id){if(!confirm('Excluir este relato?'))return;try{await FB.F.deleteDoc(FB.F.doc(FB.db,'problemas',id))}catch(e){alert(errMsg(e))}}
 
 /* ---------- Ajuda ---------- */
 function viewAjuda(){

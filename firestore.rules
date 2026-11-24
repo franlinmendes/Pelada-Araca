@@ -32,6 +32,16 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Relatos de problemas: qualquer usuário logado envia; só admin lê e gerencia.
+    match /problemas/{id} {
+      allow create: if signed() &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.texto is string &&
+        request.resource.data.texto.size() > 0 &&
+        request.resource.data.texto.size() <= 1000;
+      allow read, update, delete: if isAdmin();
+    }
+
     // Contatos para notificação: só admin.
     match /config/{doc} {
       allow read, write: if isAdmin();
