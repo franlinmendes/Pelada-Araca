@@ -85,6 +85,7 @@ function pickPhoto(p,inp){
   img.onerror=()=>alert('Não foi possível ler essa imagem.');img.src=url;
 }
 // Local da pelada: aceita link do Waze/Google Maps (inclusive texto compartilhado) ou um endereço digitado.
+const LOCAL_PADRAO='https://maps.app.goo.gl/GMAQRhsgS6eGXB4j8';
 const MAPHOSTS=/^(www\.)?(google\.[a-z]{2,3}(\.[a-z]{2})?\/maps|maps\.google\.[a-z]{2,3}(\.[a-z]{2})?|maps\.app\.goo\.gl|goo\.gl\/maps|waze\.com|ul\.waze\.com)(\/|\?|$)/i;
 function normLocal(t){
   t=(t||'').trim();if(!t)return{ok:true,v:''};
@@ -353,7 +354,7 @@ function viewPeladas(){
     <label>Título</label><input id="n_t" value="Pelada Flor do Araçá">
     <div class="row"><div><label>Data</label>${DATEIN('n_d')}</div>
     <div><label>Hora (24h)</label><input id="n_h" inputmode="numeric" placeholder="hh:mm" maxlength="5" autocomplete="off" oninput="maskTime(this)"></div></div>
-    <label>Local (opcional)</label><input id="n_l" placeholder="Cole o link do Waze/Google Maps ou digite o endereço" autocomplete="off">
+    <label>Local (opcional)</label><input id="n_l" value="${LOCAL_PADRAO}" placeholder="Cole o link do Waze/Google Maps ou digite o endereço" autocomplete="off">
     <label>Número máximo de jogadores</label><input id="n_m" type="number" inputmode="numeric" value="20" min="2">
     <button class="p" onclick="createPelada()">Criar pelada</button>
     <button class="s" style="width:100%;margin-top:8px" onclick="showNew=false;render()">Cancelar</button></div>`
