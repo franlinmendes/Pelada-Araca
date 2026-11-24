@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pelada Araca</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b6b3a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pelada Araca">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+:root{--g:#0b6b3a;--g2:#0e8a4b;--bg:#f2f5f3;--c:#fff;--t:#17211b;--m:#6b7a70;--r:#d33}
+@media(prefers-color-scheme:dark){:root{--bg:#101512;--c:#1a221d;--t:#e8efe9;--m:#93a398}}
+*{box-sizing:border-box}body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--t);padding-bottom:80px}
+header{background:var(--g);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;font-weight:700;font-size:20px;position:sticky;top:0;z-index:5}
+main{padding:12px;max-width:640px;margin:auto}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--c);border-top:1px solid #8884;padding-bottom:env(safe-area-inset-bottom);z-index:5}
+nav button{flex:1;border:0;background:none;padding:12px 4px;font-size:13px;color:var(--m)}nav button.on{color:var(--g2);font-weight:700}
+nav b{display:block;font-size:20px}
+.card{background:var(--c);border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:0 1px 3px #0002}
+button.p{background:var(--g2);color:#fff;border:0;border-radius:10px;padding:12px 16px;font-size:16px;font-weight:700;width:100%;margin-top:8px}
+button.s{background:none;border:1px solid var(--g2);color:var(--g2);border-radius:8px;padding:8px 12px;font-size:14px}
+button.d{background:none;border:1px solid var(--r);color:var(--r);border-radius:8px;padding:8px 12px;font-size:14px}
+input,select{width:100%;padding:10px;border:1px solid #8886;border-radius:8px;font-size:16px;background:var(--bg);color:var(--t);margin:4px 0 10px}
+label{font-size:13px;color:var(--m)}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}
+.pl{display:flex;align-items:center;gap:10px}.pl .i{flex:1}.pl small{color:var(--m)}
+.tag{display:inline-block;background:var(--g2);color:#fff;border-radius:6px;padding:1px 7px;font-size:12px;margin-right:4px}
+.cnt{position:fixed;bottom:calc(64px + env(safe-area-inset-bottom));left:12px;right:12px;max-width:616px;margin:auto;z-index:4}
+input[type=checkbox]{width:24px;height:24px;margin:0;flex:none}
+.modal{position:fixed;inset:0;background:#0009;display:flex;align-items:center;justify-content:center;z-index:9;padding:20px}
+.modal .card{width:100%;max-width:400px}
+h3{margin:4px 0 8px}.m{color:var(--m);font-size:14px}
+</style></head><body>
+<header id="hd">⚽ Pelada Araca</header>
+<main id="app"></main>
+<nav>
+<button data-t="pelada"><b>⚽</b>Pelada</button>
+<button data-t="jog"><b>👥</b>Jogadores</button>
+<button data-t="cfg"><b>⚙️</b>Config</button>
+</nav>
+<script src="balance.js"></script>
+<script>
+const KEY='pelada-araca-v1', MAX=100;
+const POSN={goleiro:'Goleiro',zagueiro:'Zagueiro',meia:'Meia',atacante:'Atacante'};
+let S=load(), tab='pelada', sel=new Set(), result=null, edit=null;
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.players)return s}catch(e){}return{players:[],contacts:[]}}
+function save(){localStorage.setItem(KEY,JSON.stringify(S))}
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;result=null;edit=null;render()});
+
+function render(){
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===tab));
+  const a=$('#app');
+  if(result) return a.innerHTML=viewResult();
+  a.innerHTML = tab==='pelada'?viewPelada():tab==='jog'?viewJog():viewCfg();
+}
+
+/* ---------- Pelada ---------- */
+function viewPelada(){
+  const P=S.players.slice().sort((a,b)=>a.nome.localeCompare(b.nome));
+  if(!P.length) return `<div class="card">Nenhum jogador cadastrado. Vá na aba <b>Jogadores</b>.</div>`;
+  return `<div class="row" style="margin-bottom:10px"><button class="s" onclick="selAll(true)">Marcar todos</button><button class="s" onclick="selAll(false)">Limpar</button></div>`+
+  P.map(p=>`<label class="card pl" style="color:var(--t);font-size:16px"><input type="checkbox" ${sel.has(p.id)?'checked':''} onchange="tog('${p.id}')">
+  <div class="i">${esc(p.nome)}<br><small>${POSN[p.pos]} · nota ${p.nota} · res. ${p.vel}</small></div></label>`).join('')+
+  `<div class="cnt"><button class="p" onclick="startAsk()"><span id="n">${sel.size}</span> selecionados — ▶ Iniciar pelada</button></div>`;
+}
+function tog(id){sel.has(id)?sel.delete(id):sel.add(id);$('#n').textContent=sel.size}
+function selAll(v){sel=v?new Set(S.players.map(p=>p.id)):new Set();render()}
+function startAsk(){
+  if(sel.size<2) return alert('Selecione pelo menos 2 jogadores.');
+  const d=document.createElement('div');d.className='modal';d.innerHTML=`<div class="card"><h3>Dividir ${sel.size} jogadores</h3>
+  <label>Em quantos times?</label><input id="nt" type="number" min="2" max="${sel.size}" value="2" inputmode="numeric">
+  <div class="row"><button class="s" id="cx">Cancelar</button><button class="p" id="ok" style="margin:0">Sortear</button></div></div>`;
+  document.body.appendChild(d);
+  $('#cx').onclick=()=>d.remove();
+  $('#ok').onclick=()=>{const n=parseInt($('#nt').value);
+    if(!(n>=2&&n<=sel.size)) return alert('Número de times inválido (2 a '+sel.size+').');
+    d.remove();run(n)};
+}
+function run(n){
+  const pl=S.players.filter(p=>sel.has(p.id));
+  result=Balance.balance(pl,n);render();window.scrollTo(0,0);
+}
+function viewResult(){
+  const cores=['🟢','🔵','🟡','🔴','🟣','🟠','⚪','⚫'];
+  return `<div class="row" style="margin-bottom:10px"><button class="s" onclick="result=null;render()">← Voltar</button><button class="s" onclick="run(result.length)">🔀 Sortear de novo</button></div>`+
+  result.map((t,i)=>`<div class="card"><h3>${cores[i%8]} Time ${i+1}</h3>
+  <div class="m">${t.length} jogadores · média das notas <b>${avg(t.map(p=>p.nota)).toFixed(2)}</b> · resistência <b>${avg(t.map(p=>p.vel)).toFixed(2)}</b></div>
+  <div class="m" style="margin:4px 0 8px">${Balance.POS.map(x=>{const c=t.filter(p=>p.pos===x).length;return c?`${c} ${POSN[x].toLowerCase()}`:''}).filter(Boolean).join(' · ')}</div>
+  ${t.slice().sort((a,b)=>Balance.POS.indexOf(a.pos)-Balance.POS.indexOf(b.pos)).map(p=>`<div class="pl" style="padding:5px 0;border-top:1px solid #8883"><div class="i">${esc(p.nome)}</div><span class="tag">${POSN[p.pos]}</span><small>${p.nota}</small></div>`).join('')}</div>`).join('')+
+  `<button class="p" onclick="notify()">📲 Avisar contatos (WhatsApp)</button>
+   <button class="s" style="width:100%;margin-top:8px" onclick="shareText()">Compartilhar texto dos times</button>`;
+}
+function teamsText(){
+  return '⚽ Pelada Araca\n\n'+result.map((t,i)=>`*Time ${i+1}* (média ${avg(t.map(p=>p.nota)).toFixed(2)})\n`+t.map(p=>`- ${p.nome} (${POSN[p.pos]})`).join('\n')).join('\n\n');
+}
+function shareText(){const t=teamsText();if(navigator.share)navigator.share({text:t}).catch(()=>{});else navigator.clipboard.writeText(t).then(()=>alert('Texto copiado!'))}
+function notify(){
+  if(!S.contacts.length) return alert('Cadastre números na aba Config.');
+  const d=document.createElement('div');d.className='modal';
+  d.innerHTML=`<div class="card"><h3>Avisar contatos</h3><p class="m">O app abre o WhatsApp (ou SMS) com a mensagem pronta; toque em enviar para cada contato.</p>
+  ${S.contacts.map((c,i)=>`<div class="pl" style="margin:6px 0"><div class="i">${esc(c.nome||c.tel)}<br><small>${esc(c.tel)}</small></div>
+  <button class="s" onclick="wa(${i})">WhatsApp</button><button class="s" onclick="sms(${i})">SMS</button></div>`).join('')}
+  <button class="p" onclick="this.closest('.modal').remove()">Fechar</button></div>`;
+  document.body.appendChild(d);
+}
+const digits=t=>t.replace(/\D/g,'');
+function wa(i){location.href='https://wa.me/'+digits(S.contacts[i].tel)+'?text='+encodeURIComponent(teamsText())}
+function sms(i){location.href='sms:'+digits(S.contacts[i].tel)+'?&body='+encodeURIComponent(teamsText())}
+
+/* ---------- Jogadores ---------- */
+function viewJog(){
+  if(edit!==null) return formJog();
+  const P=S.players.slice().sort((a,b)=>a.nome.localeCompare(b.nome));
+  return `<button class="p" style="margin:0 0 10px" onclick="edit='new';render()">+ Novo jogador (${P.length}/${MAX})</button>`+
+  P.map(p=>`<div class="card pl"><div class="i"><b>${esc(p.nome)}</b> <span class="tag">${POSN[p.pos]}</span><br><small>${p.idade} anos · nota ${p.nota} · resistência ${p.vel}</small></div>
+  <button class="s" onclick="edit='${p.id}';render()">Editar</button></div>`).join('');
+}
+function opts(n,v){return Array.from({length:10},(_,i)=>`<option ${i+1==v?'selected':''}>${i+1}</option>`).join('')}
+function formJog(){
+  const p=S.players.find(x=>x.id===edit)||{nome:'',nota:5,vel:5,pos:'meia',idade:25};
+  return `<div class="card"><h3>${edit==='new'?'Novo jogador':'Editar jogador'}</h3>
+  <label>Nome</label><input id="f_n" value="${esc(p.nome)}">
+  <label>Posição</label><select id="f_p">${Object.entries(POSN).map(([k,v])=>`<option value="${k}" ${k===p.pos?'selected':''}>${v}</option>`).join('')}</select>
+  <div class="row"><div><label>Nota (1-10)</label><select id="f_no">${opts(10,p.nota)}</select></div>
+  <div><label>Velocidade/resistência (1-10)</label><select id="f_v">${opts(10,p.vel)}</select></div></div>
+  <label>Idade</label><input id="f_i" type="number" min="10" max="90" inputmode="numeric" value="${p.idade}">
+  <button class="p" onclick="saveJog()">Salvar</button>
+  <div class="row" style="margin-top:8px"><button class="s" onclick="edit=null;render()">Cancelar</button>${edit!=='new'?`<button class="d" onclick="delJog()">Excluir</button>`:''}</div></div>`;
+}
+function saveJog(){
+  const nome=$('#f_n').value.trim(); if(!nome) return alert('Informe o nome.');
+  const idade=parseInt($('#f_i').value); if(!(idade>=10&&idade<=90)) return alert('Idade inválida.');
+  const o={nome,pos:$('#f_p').value,nota:+$('#f_no').value,vel:+$('#f_v').value,idade};
+  if(edit==='new'){ if(S.players.length>=MAX) return alert('Limite de '+MAX+' jogadores.'); S.players.push({id:uid(),...o}); }
+  else Object.assign(S.players.find(x=>x.id===edit),o);
+  save();edit=null;render();
+}
+function delJog(){if(!confirm('Excluir jogador?'))return;S.players=S.players.filter(x=>x.id!==edit);sel.delete(edit);save();edit=null;render()}
+
+/* ---------- Config ---------- */
+function viewCfg(){
+  return `<div class="card"><h3>📲 Celulares para notificação</h3>
+  ${S.contacts.map((c,i)=>`<div class="pl" style="margin:6px 0"><div class="i">${esc(c.nome||'(sem nome)')}<br><small>${esc(c.tel)}</small></div><button class="d" onclick="delC(${i})">✕</button></div>`).join('')||'<p class="m">Nenhum número.</p>'}
+  <label>Nome</label><input id="c_n"><label>Celular (com DDD, ex: 81999998888)</label><input id="c_t" type="tel" inputmode="tel">
+  <button class="p" onclick="addC()">Adicionar número</button></div>
+  <div class="card"><h3>🔄 Compartilhar configurações</h3>
+  <p class="m">Exporte jogadores e contatos para um arquivo e envie para outro aparelho. No outro celular, importe o arquivo.</p>
+  <button class="p" onclick="exportCfg()">Exportar arquivo</button>
+  <label style="display:block;margin-top:14px">Importar arquivo (.json)</label>
+  <input type="file" accept=".json,application/json" onchange="importCfg(this.files[0])"></div>
+  <div class="card"><button class="d" onclick="if(confirm('Apagar TODOS os dados?')){S={players:[],contacts:[]};sel.clear();save();render()}">Apagar todos os dados</button></div>`;
+}
+function addC(){
+  const tel=digits($('#c_t').value); if(tel.length<10) return alert('Número inválido. Use DDD + número.');
+  S.contacts.push({nome:$('#c_n').value.trim(),tel:tel.length<=11?'55'+tel:tel});save();render();
+}
+function delC(i){S.contacts.splice(i,1);save();render()}
+async function exportCfg(){
+  const blob=new Blob([JSON.stringify({app:'pelada-araca',v:1,...S},null,1)],{type:'application/json'});
+  const f=new File([blob],'pelada-araca-config.json',{type:'application/json'});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:'Pelada Araca'});return}catch(e){if(e.name==='AbortError')return}}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=f.name;a.click();
+}
+function importCfg(file){
+  if(!file) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const d=JSON.parse(r.result);
+      if(d.app!=='pelada-araca'||!Array.isArray(d.players)) throw 0;
+      const clean=d.players.slice(0,MAX).map(p=>({id:String(p.id||uid()),nome:String(p.nome||'?').slice(0,60),
+        pos:POSN[p.pos]?p.pos:'meia',nota:Math.min(10,Math.max(1,+p.nota||5)),vel:Math.min(10,Math.max(1,+p.vel||5)),idade:Math.min(90,Math.max(10,+p.idade||25))}));
+      const cts=(Array.isArray(d.contacts)?d.contacts:[]).map(c=>({nome:String(c.nome||'').slice(0,40),tel:digits(String(c.tel||''))})).filter(c=>c.tel.length>=10);
+      const sub=confirm(`Arquivo com ${clean.length} jogadores e ${cts.length} contatos.\n\nOK = SUBSTITUIR dados atuais\nCancelar = MESCLAR com os atuais`);
+      if(sub){S={players:clean,contacts:cts}}
+      else{
+        const ids=new Set(S.players.map(p=>p.id));
+        clean.forEach(p=>{if(S.players.length<MAX&&!ids.has(p.id))S.players.push(p)});
+        cts.forEach(c=>{if(!S.contacts.some(x=>x.tel===c.tel))S.contacts.push(c)});
+      }
+      sel.clear();save();render();alert('Configurações importadas!');
+    }catch(e){alert('Arquivo inválido.')}
+  };
+  r.readAsText(file);
+}
+render();
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js');
+</script></body></html>
