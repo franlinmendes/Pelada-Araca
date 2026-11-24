@@ -275,16 +275,20 @@ function openP(id){
 function closeP(){curP=null;if(rsUnsub)rsUnsub();rsUnsub=null;RS={}}
 const curPel=()=>PL.find(p=>p.id===curP);
 
-// Lista dentro / espera calculada a partir das respostas (mensalistas têm prioridade)
-function lists(p){
-  const us=Object.values(U),it=u=>RS[u.id]&&RS[u.id].intent,ts=u=>RS[u.id].ts||0;
-  const m=us.filter(u=>it(u)==='dentro'&&u.mensalista).sort((a,b)=>ts(a)-ts(b));
-  const n=us.filter(u=>it(u)==='dentro'&&!u.mensalista).sort((a,b)=>ts(a)-ts(b));
-  const pend=us.filter(u=>u.mensalista&&!RS[u.id]).length;      // mensalistas que ainda não responderam
-  const slots=Math.max(0,p.max-m.length-pend);                  // vagas liberadas para não mensalistas
-  const dentro=[...m.slice(0,p.max),...n.slice(0,slots)];
-  const espera=[...m.slice(p.max),...n.slice(slots)];
-  return{dentro,espera,fora:us.filter(u=>it(u)==='fora'),sem:us.filter(u=>!RS[u.id])};
+// Mensalistas têm 24h (a partir da criação da pelada) para responder; nesse prazo as vagas deles ficam reservadas.
+// Depois disso, as vagas livres são de quem chegar primeiro (diaristas inclusive).
+const PRAZO=24*3600e3;
+const deadline=p=>(p.createdAt||0)+PRAZO;
+const fms=ms=>{const d=new Date(ms),z=n=>String(n).padStart(2,'0');return `${z(d.getDate())}/${z(d.getMonth()+1)}/${d.getFullYear()} ${z(d.getHours())}:${z(d.getMinutes())}`};
+function lists(p,now=Date.now()){
+  const us=Object.values(U),it=u=>RS[u.id]&&RS[u.id].intent,ts=u=>RS[u.id].ts||0,dl=deadline(p),win=now<dl;
+  const dentroI=us.filter(u=>it(u)==='dentro');
+  const prio=dentroI.filter(u=>u.mensalista&&ts(u)<=dl).sort((a,b)=>ts(a)-ts(b));   // mensalistas que responderam no prazo
+  const rest=dentroI.filter(u=>!prio.includes(u)).sort((a,b)=>ts(a)-ts(b));          // demais, por ordem de chegada
+  const pend=win?us.filter(u=>u.mensalista&&!RS[u.id]).length:0;                      // vagas ainda reservadas a mensalistas
+  const slots=Math.max(0,p.max-prio.length-pend);
+  return{dentro:[...prio.slice(0,p.max),...rest.slice(0,slots)],espera:[...prio.slice(p.max),...rest.slice(slots)],
+    fora:us.filter(u=>it(u)==='fora'),sem:us.filter(u=>!RS[u.id]),win,dl};
 }
 const byNome=(a,b)=>a.nome.localeCompare(b.nome);
 function nameRow(u,extra=''){return `<div class="pl" style="padding:4px 0;border-top:1px solid #8883">${avatar(u,28)}<div class="i">${esc(u.nome)}${u.mensalista?' <span class="tag b">M</span>':''}</div><span class="tag gr">${POSN[u.pos]||''}</span>${extra}</div>`}
@@ -298,7 +302,8 @@ function viewPelada(){
   let h=`<button class="s" style="margin-bottom:10px" onclick="closeP();render()">← Peladas</button>
   <div class="card"><h3>${esc(p.titulo)}</h3><div class="m">${fdate(p.data)} · <span class="tag ${STATUS[p.status][1]}">${STATUS[p.status][0]}</span></div>
   <div class="m" style="margin-top:6px">Vagas: <b>${Math.min(L.dentro.length,p.max)}/${p.max}</b> · Espera: <b>${L.espera.length}</b></div>
-  ${ME.mensalista?'<div class="m">Você é mensalista (prioridade).</div>':''}`;
+  ${open?(L.win?`<div class="m">⏱ Mensalistas têm prioridade até <b>${fms(L.dl)}</b>. Depois disso, as vagas livres são de quem confirmar primeiro.</div>`:'<div class="m">Prazo dos mensalistas encerrado: vagas livres por ordem de confirmação.</div>'):''}
+  ${ME.mensalista?'<div class="m">Você é mensalista.</div>':''}`;
   if(open) h+=`<div class="big">${st}</div><div class="row"><button class="p on" onclick="setRsvp('${ME.id}','dentro')">Estou dentro</button><button class="p offb" onclick="setRsvp('${ME.id}','fora')">Estou fora</button></div>`;
   h+='</div>';
   if(p.status!=='aberta'&&p.times) h+=viewTimes(p);
@@ -466,6 +471,7 @@ function addC(){
 }
 function delC(i){saveCT(CT.filter((_,j)=>j!==i))}
 
+setInterval(()=>{if(curP)softRender()},60000);
 boot();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js');
 </script></body></html>
